@@ -1,3 +1,5 @@
+I am a total beginner and will need very simplistic instructions. Please be very detailed.
+
 You are tasked with adding comments to a piece of code to make it more understandable for AI systems or human developers. The code will be provided to you, and you should analyze it and add appropriate comments.
 
 To add comments to this code, follow these steps:
