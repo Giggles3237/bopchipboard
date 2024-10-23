@@ -77,6 +77,28 @@ app.get('/api/sales', (req, res) => {
   });
 });
 
+// Route to fetch pending sales
+app.get('/api/pending-sales', (req, res) => {
+  const query = `
+    SELECT * FROM vehicle_sales 
+    WHERE delivered = 0 
+    ORDER BY deliveryDate ASC
+  `;
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching pending sales:', err);
+      res.status(500).json({ message: err.message });
+    } else {
+      const trimmedResults = results.map(row => ({
+        ...row,
+        type: row.type ? row.type.trim() : row.type
+      }));
+      res.json(trimmedResults);
+    }
+  });
+});
+
 app.post('/api/sales', (req, res) => {
   const { clientName, stockNumber, year, make, model, color, advisor, delivered, deliveryDate, type } = req.body;
   
