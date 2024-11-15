@@ -138,38 +138,32 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 // Delete sale
-router.delete('/:id', authenticate, checkPermission(['delete_sales']), (req, res) => {
-  const saleId = req.params.id;
-  const userId = req.auth.userId;
-  const userRole = req.auth.role;
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const saleId = req.params.id;
 
-  // Check if user has permission to delete this sale
-  let query = 'SELECT * FROM vehicle_sales WHERE id = ?';
-  db.query(query, [saleId], (err, results) => {
-    if (err) {
-      return res.status(500).json({ message: 'Database error' });
-    }
-
+    // Check if sale exists
+    const [results] = await db.query('SELECT * FROM vehicle_sales WHERE id = ?', [saleId]);
+    
     if (results.length === 0) {
       return res.status(404).json({ message: 'Sale not found' });
     }
 
-    const sale = results[0];
-    
-    // Only allow salespeople to delete their own sales
-    if (userRole === 'Salesperson' && sale.user_id !== userId) {
-      return res.status(403).json({ message: 'Not authorized to delete this sale' });
+    // Perform delete
+    const [deleteResult] = await db.query('DELETE FROM vehicle_sales WHERE id = ?', [saleId]);
+
+    if (deleteResult.affectedRows === 0) {
+      return res.status(500).json({ message: 'Error deleting sale' });
     }
 
-    // Perform delete
-    db.query('DELETE FROM vehicle_sales WHERE id = ?', [saleId], (err) => {
-      if (err) {
-        console.error('Delete error:', err);
-        return res.status(500).json({ message: 'Error deleting sale' });
-      }
-      res.json({ message: 'Sale deleted successfully' });
+    res.json({ message: 'Sale deleted successfully' });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ 
+      message: 'Error deleting sale',
+      error: error.message 
     });
-  });
+  }
 });
 
 // Get pending sales
