@@ -12,15 +12,12 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // Get user with role information
     const [users] = await db.query(`
       SELECT u.*, r.name as role 
       FROM users u 
       LEFT JOIN roles r ON u.role_id = r.id 
       WHERE u.email = ?
     `, [email]);
-
-    console.log('Found user:', users[0]);
 
     const user = users[0];
 
@@ -33,18 +30,17 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Include role in token and response
     const token = jwt.sign(
       { 
         userId: user.id,
         role: user.role,
+        name: user.name,
         organizationId: user.organization_id
       },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    // Send response with user info including role
     res.json({
       token,
       user: {
