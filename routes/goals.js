@@ -174,8 +174,8 @@ router.post('/', authenticate, async (req, res) => {
       });
     }
 
-    // Only allow users to set their own goals
-    if (req.auth.name !== advisor) {
+    // Allow admins to set goals for anyone, but regular users can only set their own
+    if (req.auth.role !== 'Admin' && req.auth.name !== advisor) {
       console.log('Unauthorized: user', req.auth.name, 'trying to set goal for', advisor);
       return res.status(403).json({ message: 'Unauthorized to set this goal' });
     }
