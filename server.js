@@ -1,35 +1,142 @@
 const express = require('express');
+const mysql = require('mysql2');
 const cors = require('cors');
-require('dotenv').config();
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors({
-    origin: ['https://bopchips.netlify.app', 'http://localhost:3000'],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(cors());
 app.use(express.json());
 
-// Import routes
-const authRoutes = require('./routes/auth');
-const usersRoutes = require('./routes/users');
-const salesRoutes = require('./routes/sales');
-const notificationsRoutes = require('./routes/notifications');
-const activitiesRoutes = require('./routes/activities');
-const goalsRoutes = require('./routes/goals');
+// MySQL database connection
+const db = mysql.createConnection({
+  host: process.env.MYSQL_HOST,
+  user: process.env.MYSQL_USER,
+  password: process.env.MYSQL_PASSWORD,
+  database: process.env.MYSQL_DATABASE,
+});
 
-// Use routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/sales', salesRoutes);
-app.use('/api/notifications', notificationsRoutes);
-app.use('/api/activities', activitiesRoutes);
-app.use('/api/goals', goalsRoutes);
+db.connect((err) => {
+  if (err) {
+    console.error('Error connecting to MySQL database', err);
+  } else {
+    console.log('Connected to MySQL database');
+  }
+});
 
-const PORT = process.env.PORT || 5000;
+// Create table if not exists
+const createTableQuery = `CREATE TABLE IF NOT EXISTS vehicle_sales (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  clientName VARCHAR(255),
+  stockNumber VARCHAR(255) UNIQUE,
+  year INT,
+  make VARCHAR(255),
+  model VARCHAR(255),
+  color VARCHAR(255),
+  advisor VARCHAR(255),
+  delivered BOOLEAN,
+  deliveryDate DATE,
+  type VARCHAR(255)
+)`;
+
+db.query(createTableQuery, (err) => {
+  if (err) {
+    console.error('Error creating table:', err);
+  } else {
+    console.log('Table created or already exists');
+  }
+});
+
+// Routes
+app.get('/api/sales', (req, res) => {
+  db.query('SELECT * FROM vehicle_sales', (err, results) => {
+    if (err) {
+      console.error('Error fetching sales:', err);
+      res.status(500).json({ message: err.message });
+    } else {
+      // Trim the 'type' field
+      const trimmedResults = results.map(row => ({
+        ...row,
+        type: row.type ? row.type.trim() : row.type
+      }));
+      console.log('Sample of trimmed data being sent:', trimmedResults.slice(0, 2));
+      res.json(trimmedResults);
+    }
+  });
+});
+
+app.post('/api/sales', (req, res) => {
+  const { clientName, stockNumber, year, make, model, color, advisor, delivered, deliveryDate, type } = req.body;
+  
+  // Format the deliveryDate
+  let formattedDeliveryDate = null;
+  if (deliveryDate) {
+    const date = new Date(deliveryDate);
+    formattedDeliveryDate = date.toISOString().split('T')[0]; // This will give 'YYYY-MM-DD'
+  }
+
+  const query = `INSERT INTO vehicle_sales (clientName, stockNumber, year, make, model, color, advisor, delivered, deliveryDate, type) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  db.query(query, [clientName, stockNumber, year, make, model, color, advisor, delivered, formattedDeliveryDate, type],
+    (err, result) => {
+      if (err) {
+        console.error('Error adding new sale:', err);
+        res.status(400).json({ message: err.message });
+      } else {
+        res.status(201).json({ id: result.insertId, ...req.body, deliveryDate: formattedDeliveryDate });
+      }
+    }
+  );
+});
+
+app.put('/api/sales/:id', (req, res) => {
+  const { clientName, stockNumber, year, make, model, color, advisor, delivered, deliveryDate, type } = req.body;
+  
+  // Format the deliveryDate
+  let formattedDeliveryDate = null;
+  if (deliveryDate) {
+    const date = new Date(deliveryDate);
+    formattedDeliveryDate = date.toISOString().split('T')[0];
+  }
+
+  const query = `UPDATE vehicle_sales SET 
+                 clientName = ?, stockNumber = ?, year = ?, make = ?, model = ?, color = ?, 
+                 advisor = ?, delivered = ?, deliveryDate = ?, type = ? 
+                 WHERE id = ?`;
+  db.query(query, [clientName, stockNumber, year, make, model, color, advisor, delivered, formattedDeliveryDate, type, req.params.id],
+    (err, result) => {
+      if (err) {
+        console.error('Error updating sale:', err);
+        res.status(400).json({ message: err.message });
+      } else if (result.affectedRows === 0) {
+        res.status(404).json({ message: 'Sale not found' });
+      } else {
+        res.json({ id: req.params.id, ...req.body, deliveryDate: formattedDeliveryDate });
+      }
+    }
+  );
+});
+
+app.delete('/api/sales/:id', (req, res) => {
+  db.query('DELETE FROM vehicle_sales WHERE id = ?', [req.params.id], (err, result) => {
+    if (err) {
+      console.error('Error deleting sale:', err);
+      res.status(500).json({ message: err.message });
+    } else if (result.affectedRows === 0) {
+      res.status(404).json({ message: 'Sale not found' });
+    } else {
+      res.json({ message: 'Sale deleted successfully' });
+    }
+  });
+});
+
+const vehiclesRouter = require('./routes/vehicles');
+
+app.use('/api/vehicles', vehiclesRouter);
+
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
