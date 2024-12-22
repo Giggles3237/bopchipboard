@@ -12,21 +12,24 @@ app.use(cors());
 app.use(express.json());
 
 // MySQL database connection
-const db = mysql.createConnection({
+const db = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
   ssl: {
     rejectUnauthorized: true
   }
 });
 
-db.connect((err) => {
-  if (err) {
-    console.error('Error connecting to MySQL database', err);
-  } else {
-    console.log('Connected to MySQL database');
+// Add error handling for the pool
+db.on('error', (err) => {
+  console.error('Database pool error:', err);
+  if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+    console.error('Database connection was closed.');
   }
 });
 
