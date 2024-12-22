@@ -13,10 +13,13 @@ app.use(express.json());
 
 // MySQL database connection
 const db = mysql.createConnection({
-  host: process.env.MYSQL_HOST,
-  user: process.env.MYSQL_USER,
-  password: process.env.MYSQL_PASSWORD,
-  database: process.env.MYSQL_DATABASE,
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  ssl: {
+    rejectUnauthorized: true
+  }
 });
 
 db.connect((err) => {
@@ -132,10 +135,6 @@ app.delete('/api/sales/:id', (req, res) => {
     }
   });
 });
-
-const vehiclesRouter = require('./routes/vehicles');
-
-app.use('/api/vehicles', vehiclesRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
