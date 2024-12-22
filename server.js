@@ -13,24 +13,22 @@ app.use(express.json());
 
 // MySQL database connection
 const db = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: process.env.MYSQL_HOST,     // Your Azure MySQL host
+  user: process.env.MYSQL_USER,     // Your Azure MySQL username
+  password: process.env.MYSQL_PASSWORD, // Your Azure MySQL password
+  database: process.env.MYSQL_DATABASE, // Your database name
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
   ssl: {
-    rejectUnauthorized: true
+    // For Azure MySQL, we need to disable certificate verification in dev
+    rejectUnauthorized: false
   }
 });
 
 // Add error handling for the pool
 db.on('error', (err) => {
   console.error('Database pool error:', err);
-  if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-    console.error('Database connection was closed.');
-  }
 });
 
 // Create table if not exists
