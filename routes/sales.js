@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, checkPermission } = require('../middleware/auth');
-const db = require('../db');
+const { oldPool } = require('../db');
 
 // Get all sales
 router.get('/', authenticate, async (req, res) => {
   try {
     // Simple query to get ALL sales
-    const [results] = await db.query('SELECT * FROM vehicle_sales ORDER BY deliveryDate DESC');
+    const [results] = await oldPool.query('SELECT * FROM vehicle_sales ORDER BY deliveryDate DESC');
     
     console.log('Query results:', {
       totalSales: results.length,
@@ -71,7 +71,7 @@ router.post('/', authenticate, async (req, res) => {
 
     console.log('Executing query with values:', values);
 
-    const [result] = await db.query(query, values);
+    const [result] = await oldPool.query(query, values);
 
     console.log('Insert result:', result);
 
@@ -101,7 +101,7 @@ router.put('/:id', authenticate, async (req, res) => {
 
   try {
     // First check if sale exists
-    const [results] = await db.query('SELECT * FROM vehicle_sales WHERE id = ?', [saleId]);
+    const [results] = await oldPool.query('SELECT * FROM vehicle_sales WHERE id = ?', [saleId]);
     
     if (results.length === 0) {
       return res.status(404).json({ message: 'Sale not found' });
@@ -112,7 +112,7 @@ router.put('/:id', authenticate, async (req, res) => {
     
     console.log('Executing update with:', updateData);
 
-    const [updateResult] = await db.query(
+    const [updateResult] = await oldPool.query(
       'UPDATE vehicle_sales SET ? WHERE id = ?',
       [updateData, saleId]
     );
@@ -124,7 +124,7 @@ router.put('/:id', authenticate, async (req, res) => {
     }
 
     // Return the updated sale data
-    const [updatedSale] = await db.query(
+    const [updatedSale] = await oldPool.query(
       'SELECT * FROM vehicle_sales WHERE id = ?',
       [saleId]
     );
@@ -143,14 +143,14 @@ router.delete('/:id', authenticate, async (req, res) => {
     const saleId = req.params.id;
 
     // Check if sale exists
-    const [results] = await db.query('SELECT * FROM vehicle_sales WHERE id = ?', [saleId]);
+    const [results] = await oldPool.query('SELECT * FROM vehicle_sales WHERE id = ?', [saleId]);
     
     if (results.length === 0) {
       return res.status(404).json({ message: 'Sale not found' });
     }
 
     // Perform delete
-    const [deleteResult] = await db.query('DELETE FROM vehicle_sales WHERE id = ?', [saleId]);
+    const [deleteResult] = await oldPool.query('DELETE FROM vehicle_sales WHERE id = ?', [saleId]);
 
     if (deleteResult.affectedRows === 0) {
       return res.status(500).json({ message: 'Error deleting sale' });
@@ -169,7 +169,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 // Get pending sales
 router.get('/pending-sales', authenticate, async (req, res) => {
   try {
-    const [results] = await db.query(`
+    const [results] = await oldPool.query(`
       SELECT * FROM vehicle_sales 
       WHERE delivered = 0 
       ORDER BY deliveryDate ASC

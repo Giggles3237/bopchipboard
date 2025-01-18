@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, checkPermission } = require('../middleware/auth');
-const db = require('../db');
+const { oldPool } = require('../db');
 const bcrypt = require('bcrypt');
 
 // Add debugging middleware
@@ -57,15 +57,37 @@ router.put('/change-password', authenticate, async (req, res) => {
 router.get('/', authenticate, checkPermission(['view_users']), async (req, res) => {
   try {
     console.log('Fetching users...');
-    const [results] = await db.query(`
+    console.log('Auth user:', req.auth);
+    
+    // First check if tables exist
+    const [tables] = await oldPool.query(`
+      SELECT TABLE_NAME 
+      FROM information_schema.TABLES 
+      WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME IN ('users', 'roles', 'organizations')
+    `);
+    
+    console.log('Available tables:', tables);
+
+    // Check if we can access the roles table
+    const [rolesCheck] = await oldPool.query('SELECT * FROM roles LIMIT 1');
+    console.log('Roles check:', rolesCheck);
+
+    // Check if we can access the organizations table
+    const [orgsCheck] = await oldPool.query('SELECT * FROM organizations LIMIT 1');
+    console.log('Organizations check:', orgsCheck);
+
+    // Now try the full query with better error handling
+    const [results] = await oldPool.query(`
       SELECT u.*, 
              r.name as role_name,
              o.name as organization_name 
       FROM users u
-      JOIN roles r ON u.role_id = r.id
-      JOIN organizations o ON u.organization_id = o.id
+      LEFT JOIN roles r ON u.role_id = r.id
+      LEFT JOIN organizations o ON u.organization_id = o.id
     `);
-    console.log('Users fetched:', results.length);
+    
+    console.log('Users fetched:', results?.length || 0);
     
     const usersWithoutPasswords = results.map(user => {
       const { password, ...userWithoutPassword } = user;
@@ -74,15 +96,25 @@ router.get('/', authenticate, checkPermission(['view_users']), async (req, res) 
     
     res.json(usersWithoutPasswords);
   } catch (err) {
-    console.error('Database error:', err);
-    return res.status(500).json({ message: 'Error fetching users' });
+    console.error('Detailed database error:', {
+      code: err.code,
+      errno: err.errno,
+      sqlMessage: err.sqlMessage,
+      sqlState: err.sqlState,
+      stack: err.stack
+    });
+    
+    return res.status(500).json({ 
+      message: 'Error fetching users',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 
 // Get active salespeople
 router.get('/salespeople', authenticate, async (req, res) => {
   try {
-    const [results] = await db.query(`
+    const [results] = await oldPool.query(`
       SELECT u.id, u.name, u.email 
       FROM users u
       JOIN roles r ON u.role_id = r.id
@@ -163,16 +195,53 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 // Delete user (admin only)
-router.delete('/:id', authenticate, checkPermission(['delete_users']), (req, res) => {
-  const userId = req.params.id;
+router.delete('/:id', authenticate, checkPermission(['delete_users']), async (req, res) => {
+  try {
+    const userId = req.params.id;
 
-  db.query('DELETE FROM users WHERE id = ?', [userId], (err, result) => {
-    if (err) {
-      console.error('Database error:', err);
-      return res.status(500).json({ message: 'Error deleting user' });
+    // First check if user exists
+    const [users] = await oldPool.query(`
+      SELECT u.*, r.name as role_name 
+      FROM users u
+      JOIN roles r ON u.role_id = r.id
+      WHERE u.id = ?
+    `, [userId]);
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
     }
-    res.json({ message: 'User deleted successfully' });
-  });
+
+    // Generate an invalid password hash that can't be used to login
+    const invalidPasswordHash = await bcrypt.hash('DEACTIVATED_' + Date.now(), 10);
+
+    // Instead of setting password to NULL, use the invalid hash
+    const [result] = await oldPool.query(`
+      UPDATE users 
+      SET status = 'inactive', 
+          email = CONCAT(email, '_inactive_', DATE_FORMAT(NOW(), '%Y%m%d')),
+          password = ?
+      WHERE id = ?
+    `, [invalidPasswordHash, userId]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ 
+      message: 'User deactivated successfully. Historical sales records have been preserved.' 
+    });
+  } catch (error) {
+    console.error('Error deactivating user:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sql: error.sql
+    });
+    res.status(500).json({ 
+      message: 'Error deactivating user',
+      details: error.sqlMessage || error.message 
+    });
+  }
 });
 
 // Add new user (admin only)
@@ -219,9 +288,10 @@ router.post('/', authenticate, checkPermission(['edit_users']), async (req, res)
   }
 });
 
+// Get salespeople and managers
 router.get('/salespeople-and-managers', authenticate, async (req, res) => {
   try {
-    const [users] = await db.query(`
+    const [users] = await oldPool.query(`
       SELECT u.id, u.name, r.name as role 
       FROM users u
       JOIN roles r ON u.role_id = r.id

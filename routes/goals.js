@@ -2,13 +2,13 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
-const db = require('../db');
+const { oldPool } = require('../db');
 
 // 1. Team-specific routes first
 router.get('/team/test/:month', authenticate, async (req, res) => {
     try {
         const { month } = req.params;
-        const [results] = await db.query(
+        const [results] = await oldPool.query(
             'SELECT * FROM team_goals WHERE month = ?',
             [month]
         );
@@ -26,102 +26,61 @@ router.get('/team/test/:month', authenticate, async (req, res) => {
 });
 
 router.get('/team/:month', authenticate, async (req, res) => {
-    try {
-        const { month } = req.params;
-        console.log('GET /team/:month - Fetching team goal for month:', month);
+  try {
+    console.log('Fetching team goal for month:', req.params.month);
+    
+    const [results] = await oldPool.query(
+      'SELECT * FROM monthly_goals WHERE month = ?',
+      [req.params.month]
+    );
+    
+    console.log('Query results:', results);
 
-        const [results] = await db.query(
-            'SELECT * FROM team_goals WHERE month = ?',
-            [month]
-        );
-        
-        console.log('GET /team/:month - Raw database results:', results);
-
-        if (!results || !results.length) {
-            console.log('GET /team/:month - No goal found for month:', month);
-            res.json({ goal_count: 0 });
-            return;
-        }
-
-        const goal = results[0];
-        console.log('GET /team/:month - Found goal:', goal);
-        
-        const response = {
-            goal_count: parseInt(goal.goal_count),
-            month: goal.month,
-            updated_at: goal.updated_at
-        };
-        
-        console.log('GET /team/:month - Sending response:', response);
-        res.json(response);
-
-    } catch (error) {
-        console.error('GET /team/:month - Error:', error);
-        res.status(500).json({ message: 'Error fetching team goal' });
+    if (!results || results.length === 0) {
+      return res.json({ goal_count: 0 });
     }
+
+    res.json({ goal_count: results[0].goal_count });
+    
+  } catch (error) {
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sql: error.sql
+    });
+    
+    res.status(500).json({ 
+      message: 'Error fetching team goal',
+      details: error.sqlMessage || error.message
+    });
+  }
 });
 
 router.post('/team', authenticate, async (req, res) => {
   try {
     const { month, goal_count } = req.body;
     
-    if (!month || goal_count === undefined) {
-      console.error('Invalid request data:', { month, goal_count });
-      return res.status(400).json({ 
-        message: 'Missing required fields',
-        received: { month, goal_count }
-      });
-    }
-
-    // First check if a record exists for this month
-    const [existing] = await db.query(
-      'SELECT id FROM team_goals WHERE month = ?',
-      [month]
-    );
-
-    let result;
-    if (existing.length > 0) {
-      // Update existing record
-      [result] = await db.query(
-        'UPDATE team_goals SET goal_count = ? WHERE month = ?',
-        [goal_count, month]
-      );
-    } else {
-      // Insert new record
-      [result] = await db.query(
-        'INSERT INTO team_goals (month, goal_count) VALUES (?, ?)',
-        [month, goal_count]
-      );
-    }
-
-    // Log the operation result
-    console.log('Database operation result:', {
-      result,
-      affectedRows: result.affectedRows,
-      insertId: result.insertId
-    });
-
-    // Verify the save
-    const [verification] = await db.query(
-      'SELECT * FROM team_goals WHERE month = ?',
-      [month]
+    const [result] = await oldPool.query(
+      `INSERT INTO monthly_goals (month, goal_count) 
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE goal_count = ?`,
+      [month, goal_count, goal_count]
     );
     
-    console.log('Verification query result:', verification);
-
     res.json({ 
       message: 'Team goal saved successfully',
-      goal: { month, goal_count },
-      verification: verification[0]
+      goal: { month, goal_count }
     });
     
   } catch (error) {
     console.error('Error saving team goal:', {
       error: error.message,
-      stack: error.stack,
-      sql: error.sql,
-      sqlMessage: error.sqlMessage
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sql: error.sql
     });
+    
     res.status(500).json({ 
       message: 'Error saving team goal',
       details: error.sqlMessage || error.message
@@ -133,7 +92,7 @@ router.post('/team', authenticate, async (req, res) => {
 router.get('/month/:month', authenticate, async (req, res) => {
   try {
     const { month } = req.params;
-    const [results] = await db.query(
+    const [results] = await oldPool.query(
       'SELECT advisor_name, goal_count FROM monthly_goals WHERE month = ?',
       [month]
     );
@@ -148,7 +107,7 @@ router.get('/month/:month', authenticate, async (req, res) => {
 router.get('/:advisor/:month', authenticate, async (req, res) => {
   try {
     const { advisor, month } = req.params;
-    const [results] = await db.query(
+    const [results] = await oldPool.query(
       'SELECT goal_count FROM monthly_goals WHERE advisor_name = ? AND month = ?',
       [advisor, month]
     );
@@ -181,7 +140,7 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     console.log('Executing query with values:', { advisor, month, goal_count });
-    const [result] = await db.query(
+    const [result] = await oldPool.query(
       `REPLACE INTO monthly_goals (advisor_name, month, goal_count)
        VALUES (?, ?, ?)`,
       [advisor, month, goal_count]
