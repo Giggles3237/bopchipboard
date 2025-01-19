@@ -9,7 +9,23 @@ router.get('/', authenticate, async (req, res) => {
     const { searchTerm, limit } = req.query;
     
     let query = `
-      SELECT * FROM Vehicles_Data
+      SELECT 
+        \`Stock #\` as stockNumber,
+        Year,
+        Make,
+        Model,
+        Color,
+        VIN,
+        Age,
+        Interior,
+        \`Current Price\` as price,
+        \`New/Used\` as status,
+        Certified,
+        Series,
+        Odometer,
+        \`Recon Step\` as reconStep,
+        chassis
+      FROM unifiedvehicledata
       WHERE 1=1
     `;
     
@@ -17,12 +33,13 @@ router.get('/', authenticate, async (req, res) => {
 
     if (searchTerm) {
       query += ` AND (
-        Stock_Number LIKE ? OR
-        Vehicle LIKE ? OR
-        Color LIKE ?
+        \`Stock #\` LIKE ? OR
+        CONCAT(Year, ' ', Make, ' ', Model) LIKE ? OR
+        Color LIKE ? OR
+        VIN LIKE ?
       )`;
       const searchPattern = `%${searchTerm}%`;
-      params.push(searchPattern, searchPattern, searchPattern);
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern);
     }
 
     if (limit) {
