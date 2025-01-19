@@ -10,22 +10,28 @@ router.get('/', authenticate, async (req, res) => {
     
     let query = `
       SELECT 
-        StockNumber,
-        Year,
-        Make,
-        Model,
-        Color,
-        Price,
-        Status,
-        VIN,
-        Age,
-        Interior,
-        Certified,
-        Series,
-        Odometer,
-        ReconStatus as reconStep,
-        Chassis as chassis
-      FROM latest_vehicle_summary
+        v.StockNumber,
+        v.Year,
+        v.Make,
+        v.Model,
+        v.Color,
+        v.Price,
+        v.Status,
+        v.VIN,
+        v.Age,
+        v.Interior,
+        v.Certified,
+        v.Series,
+        v.Odometer,
+        v.ReconStatus as reconStep,
+        v.Chassis as chassis,
+        k.Status as KeyStatus,
+        k.User as KeyUser,
+        k.Location as KeyLocation,
+        k.CheckOutDate,
+        k.CheckInDate
+      FROM latest_vehicle_summary v
+      LEFT JOIN latest_key_data k ON v.StockNumber = k.StockNumber
       WHERE 1=1
     `;
     
@@ -33,10 +39,10 @@ router.get('/', authenticate, async (req, res) => {
 
     if (searchTerm) {
       query += ` AND (
-        StockNumber LIKE ? OR
-        CONCAT(Year, ' ', Make, ' ', Model) LIKE ? OR
-        Color LIKE ? OR
-        VIN LIKE ?
+        v.StockNumber LIKE ? OR
+        CONCAT(v.Year, ' ', v.Make, ' ', v.Model) LIKE ? OR
+        v.Color LIKE ? OR
+        v.VIN LIKE ?
       )`;
       const searchPattern = `%${searchTerm}%`;
       params.push(searchPattern, searchPattern, searchPattern, searchPattern);
