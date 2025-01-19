@@ -6,7 +6,9 @@ const { newPool } = require('../db');
 // Get unified vehicles
 router.get('/', authenticate, async (req, res) => {
   try {
+    console.log('UnifiedVehicles route hit');
     const { searchTerm, limit } = req.query;
+    console.log('Query params:', { searchTerm, limit });
     
     let query = `
       SELECT 
@@ -50,6 +52,8 @@ router.get('/', authenticate, async (req, res) => {
     `;
     
     const params = [];
+    console.log('Executing query:', query);
+    console.log('With params:', params);
 
     if (searchTerm) {
       query += ` AND (
@@ -68,13 +72,15 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     const [vehicles] = await newPool.query(query, params);
+    console.log('Query results:', vehicles.length);
     res.json(vehicles);
     
   } catch (error) {
-    console.error('Error fetching unified vehicles:', error);
+    console.error('Full error object:', error);
     res.status(500).json({ 
-      message: 'Error fetching vehicles data',
-      error: error.message 
+      message: 'Error fetching unified vehicles',
+      error: error.message,
+      stack: error.stack
     });
   }
 });
