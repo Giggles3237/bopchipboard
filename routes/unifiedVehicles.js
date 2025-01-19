@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
-const db = require('../db');
+const { newPool } = require('../db');
 
 // Get unified vehicles
 router.get('/', authenticate, async (req, res) => {
@@ -30,7 +30,7 @@ router.get('/', authenticate, async (req, res) => {
       params.push(parseInt(limit));
     }
 
-    const [vehicles] = await db.query(query, params);
+    const [vehicles] = await newPool.query(query, params);
     res.json(vehicles);
     
   } catch (error) {
