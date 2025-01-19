@@ -23,6 +23,7 @@ const notificationsRoutes = require('./routes/notifications');
 const activitiesRoutes = require('./routes/activities');
 const goalsRoutes = require('./routes/goals');
 const unifiedVehiclesRoutes = require('./routes/unifiedVehicles');
+const keysRouter = require('./routes/keys');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -32,6 +33,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/activities', activitiesRoutes);
 app.use('/api/goals', goalsRoutes);
 app.use('/api/unifiedvehicles', unifiedVehiclesRoutes);
+app.use('/api/keys', keysRouter);
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
