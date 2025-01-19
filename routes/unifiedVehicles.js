@@ -23,15 +23,25 @@ router.get('/', authenticate, async (req, res) => {
         v.Certified,
         v.Series,
         v.Odometer,
-        v.ReconStatus as reconStep,
-        v.Chassis as chassis,
-        k.Status as KeyStatus,
-        k.User as KeyUser,
-        k.Location as KeyLocation,
-        k.CheckOutDate,
-        k.CheckInDate
+        v.ReconStatus,
+        v.Chassis,
+        v.Problems,
+        v.RecallStatus,
+        v.Tags,
+        v.vRank,
+        v.PriceRank,
+        v.VinLeads,
+        k1.KeyStatus as Key1Status,
+        k1.KeyLocation as Key1Location,
+        k1.KeyUser as Key1User,
+        k1.CheckoutLocalTime as Key1CheckoutTime,
+        k2.KeyStatus as Key2Status,
+        k2.KeyLocation as Key2Location,
+        k2.KeyUser as Key2User,
+        k2.CheckoutLocalTime as Key2CheckoutTime
       FROM latest_vehicle_summary v
-      LEFT JOIN latest_key_data k ON v.StockNumber = k.StockNumber
+      LEFT JOIN latest_key_data k1 ON v.StockNumber = k1.StockNumber AND k1.KeyDescription LIKE '%Key 1%'
+      LEFT JOIN latest_key_data k2 ON v.StockNumber = k2.StockNumber AND k2.KeyDescription LIKE '%Key 2%'
       WHERE 1=1
     `;
     
