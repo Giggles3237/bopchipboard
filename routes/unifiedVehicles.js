@@ -12,42 +12,20 @@ router.get('/', authenticate, async (req, res) => {
     
     let query = `
       SELECT 
-        v.StockNumber,
-        v.Status,
-        v.Certified,
-        v.Year,
-        v.Make,
-        v.Model,
-        v.Series,
-        v.Age,
-        v.Color,
-        v.Interior,
-        v.VIN,
-        v.Odometer,
-        v.Equipment,
-        v.Report,
-        v.Recall,
-        v.Warnings,
-        v.Problems,
-        v.RecallStatus,
-        v.Tags,
-        v.vRank,
-        v.PriceRank,
-        v.VinLeads,
-        v.Price,
-        v.ReconStatus,
-        v.Chassis,
-        k1.KeyStatus as Key1Status,
-        k1.KeyLocation as Key1Location,
-        k1.KeyUser as Key1User,
-        k1.CheckoutLocalTime as Key1CheckoutTime,
-        k2.KeyStatus as Key2Status,
-        k2.KeyLocation as Key2Location,
-        k2.KeyUser as Key2User,
-        k2.CheckoutLocalTime as Key2CheckoutTime
+        v.*,
+        k1.Status as Key1Status,
+        k1.location as Key1Location,
+        k1.User as Key1User,
+        k1.\`Checkout Local Time\` as Key1CheckoutTime,
+        k1.reason as Key1Reason,
+        k2.Status as Key2Status,
+        k2.location as Key2Location,
+        k2.User as Key2User,
+        k2.\`Checkout Local Time\` as Key2CheckoutTime,
+        k2.reason as Key2Reason
       FROM latest_vehicle_summary v
-      LEFT JOIN latest_key_data k1 ON v.StockNumber = k1.StockNumber AND k1.KeyDescription LIKE '%Key 1%'
-      LEFT JOIN latest_key_data k2 ON v.StockNumber = k2.StockNumber AND k2.KeyDescription LIKE '%Key 2%'
+      LEFT JOIN keyperdata k1 ON v.StockNumber = k1.StockNumber
+      LEFT JOIN keyperdata_second_key k2 ON v.StockNumber = k2.StockNumber
       WHERE 1=1
     `;
     
