@@ -6,16 +6,10 @@ const { newPool } = require('../db');
 // Get unified vehicles
 router.get('/', authenticate, async (req, res) => {
   try {
-    // First, let's verify the tables exist and have data
-    const [tableCheck] = await newPool.query(`
-      SELECT 
-        (SELECT COUNT(*) FROM indexfiletable) as indexCount,
-        (SELECT COUNT(*) FROM vautoexporttable) as vautoCount
-    `);
+    const { searchTerm, limit = 25, page = 1, sortBy = 'StockNumber', sortOrder = 'asc' } = req.query;
     
-    console.log('Table record counts:', tableCheck);
-
-    const query = `
+    // Build the base query
+    let query = `
       SELECT 
         i.StockNumber,
         i.Year,
@@ -29,41 +23,58 @@ router.get('/', authenticate, async (req, res) => {
         i.DaysInStock
       FROM indexfiletable i
       LEFT JOIN vautoexporttable v ON i.StockNumber = v.StockNumber
-      WHERE i.StockNumber IS NOT NULL
-      ORDER BY i.DateReceived DESC
-      LIMIT 100
+      WHERE 1=1
     `;
+    
+    const params = [];
 
-    const [vehicles] = await newPool.query(query);
-    
-    console.log(`Query returned ${vehicles.length} vehicles`);
-    
-    // Log a sample vehicle if any exist
-    if (vehicles.length > 0) {
-      console.log('Sample vehicle:', vehicles[0]);
+    // Add search condition if searchTerm exists
+    if (searchTerm) {
+      query += ` AND (
+        i.StockNumber LIKE ? OR
+        i.VIN LIKE ? OR
+        i.Make LIKE ? OR
+        i.Model LIKE ? OR
+        v.Color LIKE ?
+      )`;
+      const searchPattern = `%${searchTerm}%`;
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
     }
 
-    if (vehicles.length === 0) {
-      console.log('No vehicles found. Query:', query);
-    }
+    // Add sorting
+    query += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()}`;
 
-    res.json(vehicles);
-  } catch (error) {
-    console.error('Detailed error fetching unified vehicles:', {
-      message: error.message,
-      code: error.code,
-      sqlMessage: error.sqlMessage,
-      sqlState: error.sqlState,
-      sql: error.sql
+    // Add pagination
+    const offset = (page - 1) * limit;
+    query += ` LIMIT ? OFFSET ?`;
+    params.push(Number(limit), Number(offset));
+
+    // Execute query
+    const [vehicles] = await newPool.query(query, params);
+    
+    // Get total count for pagination
+    const [countResult] = await newPool.query(
+      `SELECT COUNT(*) as total FROM indexfiletable i WHERE 1=1`,
+      searchTerm ? [`%${searchTerm}%`] : []
+    );
+    
+    const total = countResult[0].total;
+
+    res.json({
+      vehicles,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / limit)
+      }
     });
-    
+
+  } catch (error) {
+    console.error('Error fetching vehicles:', error);
     res.status(500).json({ 
       message: 'Error fetching vehicles', 
-      error: error.message,
-      details: process.env.NODE_ENV === 'development' ? {
-        code: error.code,
-        sqlMessage: error.sqlMessage
-      } : undefined
+      error: error.message 
     });
   }
 });
