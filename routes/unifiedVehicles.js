@@ -8,21 +8,22 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const { searchTerm, limit = 25, page = 1, sortBy = 'StockNumber', sortOrder = 'asc' } = req.query;
     
-    // Build the base query
+    // Build the base query using the correct view
     let query = `
       SELECT 
-        i.StockNumber,
-        i.Year,
-        i.Make,
-        i.Model,
-        i.VIN,
-        v.Color,
-        v.Status,
-        i.DateReceived,
-        i.Age,
-        i.DaysInStock
-      FROM indexfiletable i
-      LEFT JOIN vautoexporttable v ON i.StockNumber = v.StockNumber
+        StockNumber,
+        Year,
+        Make,
+        Model,
+        VIN,
+        Color,
+        Status,
+        Age,
+        Interior,
+        Equipment as 'Starred Equip',
+        Price as 'Current Price',
+        ReconStatus as 'Recon Step'
+      FROM latest_vehicle_summary
       WHERE 1=1
     `;
     
@@ -31,11 +32,11 @@ router.get('/', authenticate, async (req, res) => {
     // Add search condition if searchTerm exists
     if (searchTerm) {
       query += ` AND (
-        i.StockNumber LIKE ? OR
-        i.VIN LIKE ? OR
-        i.Make LIKE ? OR
-        i.Model LIKE ? OR
-        v.Color LIKE ?
+        StockNumber LIKE ? OR
+        VIN LIKE ? OR
+        Make LIKE ? OR
+        Model LIKE ? OR
+        Color LIKE ?
       )`;
       const searchPattern = `%${searchTerm}%`;
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
@@ -49,16 +50,21 @@ router.get('/', authenticate, async (req, res) => {
     query += ` LIMIT ? OFFSET ?`;
     params.push(Number(limit), Number(offset));
 
+    console.log('Executing query:', query);
+    console.log('With params:', params);
+
     // Execute query
     const [vehicles] = await newPool.query(query, params);
     
     // Get total count for pagination
     const [countResult] = await newPool.query(
-      `SELECT COUNT(*) as total FROM indexfiletable i WHERE 1=1`,
+      `SELECT COUNT(*) as total FROM latest_vehicle_summary WHERE 1=1`,
       searchTerm ? [`%${searchTerm}%`] : []
     );
     
     const total = countResult[0].total;
+
+    console.log(`Found ${vehicles.length} vehicles out of ${total} total`);
 
     res.json({
       vehicles,
@@ -74,7 +80,8 @@ router.get('/', authenticate, async (req, res) => {
     console.error('Error fetching vehicles:', error);
     res.status(500).json({ 
       message: 'Error fetching vehicles', 
-      error: error.message 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
