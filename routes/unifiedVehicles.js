@@ -8,7 +8,19 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const { searchTerm, limit = 25, page = 1, sortBy = 'StockNumber', sortOrder = 'asc' } = req.query;
     
-    // Simplified base query without subqueries
+    // First check if the view exists
+    const [viewCheck] = await newPool.query(`
+      SELECT COUNT(*) as viewExists 
+      FROM information_schema.views 
+      WHERE table_schema = DATABASE() 
+      AND table_name = 'latest_vehicle_summary'
+    `);
+
+    if (!viewCheck[0].viewExists) {
+      throw new Error('Required view latest_vehicle_summary does not exist');
+    }
+
+    // Build base query
     let query = `
       SELECT 
         StockNumber,
@@ -40,21 +52,23 @@ router.get('/', authenticate, async (req, res) => {
 
     // Add sorting and pagination
     query += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()} LIMIT ? OFFSET ?`;
-    params.push(Number(limit), (page - 1) * limit);
+    params.push(Number(limit), (page - 1) * Number(limit));
 
     console.log('Executing query:', { query, params });
 
-    // Execute query with timeout
+    // Execute main query with timeout
     const [vehicles] = await Promise.race([
       newPool.query(query, params),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout')), 10000)
+        setTimeout(() => reject(new Error('Database query timeout')), 10000)
       )
     ]);
 
-    // Get total count
+    // Get total count with a simpler query
     const [countResult] = await newPool.query(
-      `SELECT COUNT(*) as total FROM latest_vehicle_summary WHERE 1=1`,
+      `SELECT COUNT(*) as total FROM latest_vehicle_summary WHERE 1=1 ${
+        searchTerm ? 'AND StockNumber LIKE ?' : ''
+      }`,
       searchTerm ? [`%${searchTerm}%`] : []
     );
     
@@ -71,11 +85,26 @@ router.get('/', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching vehicles:', error);
-    res.status(500).json({ 
-      message: 'Error fetching vehicles', 
-      error: error.message
-    });
+    console.error('Error in unified vehicles route:', error);
+    
+    // Send appropriate error response
+    if (error.message.includes('timeout')) {
+      res.status(504).json({
+        message: 'Query timed out',
+        error: error.message
+      });
+    } else if (error.code === 'ER_NO_SUCH_TABLE') {
+      res.status(500).json({
+        message: 'Database table not found',
+        error: error.message
+      });
+    } else {
+      res.status(500).json({
+        message: 'Error fetching vehicles',
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
   }
 });
 
