@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const db = require('../db');
+const { oldPool } = require('../db');
 
 router.post('/login', async (req, res) => {
   try {
@@ -12,7 +12,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const [users] = await db.query(`
+    const [users] = await oldPool.query(`
       SELECT u.*, r.name as role 
       FROM users u 
       LEFT JOIN roles r ON u.role_id = r.id 

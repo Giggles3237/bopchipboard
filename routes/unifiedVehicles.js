@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
-const db = require('../db');
+const { newPool } = require('../db');
 
 // Get unified vehicles
 router.get('/', authenticate, async (req, res) => {
@@ -20,7 +20,7 @@ router.get('/', authenticate, async (req, res) => {
       WHERE 1=1
     `;
 
-    const [vehicles] = await db.query(query);
+    const [vehicles] = await newPool.query(query);
     res.json(vehicles);
   } catch (error) {
     console.error('Error fetching unified vehicles:', error);
