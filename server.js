@@ -39,6 +39,14 @@ app.use('/api/goals', goalsRoutes);
 app.use('/api/unifiedvehicles', unifiedVehiclesRoutes);
 app.use('/api/keys', keysRouter);
 
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled Rejection:', error);
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
