@@ -8,42 +8,8 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const { searchTerm, limit = 25, page = 1, sortBy = 'StockNumber', sortOrder = 'asc' } = req.query;
     
-    // First, get the total count with a simpler query
-    const countQuery = `
-      SELECT COUNT(*) as total 
-      FROM latest_vehicle_summary 
-      WHERE 1=1
-      ${searchTerm ? `AND (
-        StockNumber LIKE ? OR
-        VIN LIKE ? OR
-        Make LIKE ? OR
-        Model LIKE ? OR
-        Color LIKE ?
-      )` : ''}
-    `;
-
-    const countParams = searchTerm 
-      ? Array(5).fill(`%${searchTerm}%`)
-      : [];
-
-    const [countResult] = await newPool.query(countQuery, countParams);
-    const total = countResult[0].total;
-
-    // If no results, return early
-    if (total === 0) {
-      return res.json({
-        vehicles: [],
-        pagination: {
-          total: 0,
-          page: Number(page),
-          limit: Number(limit),
-          totalPages: 0
-        }
-      });
-    }
-
-    // Build the main query with LIMIT for better performance
-    const query = `
+    // Simplified base query without subqueries
+    let query = `
       SELECT 
         StockNumber,
         Year,
@@ -52,81 +18,50 @@ router.get('/', authenticate, async (req, res) => {
         VIN,
         Color,
         Status,
-        Age,
-        Interior,
-        Equipment as 'Starred Equip',
-        Price as 'Current Price',
-        ReconStatus as 'Recon Step',
-        (
-          SELECT JSON_OBJECT(
-            'status', k1.Status,
-            'user', k1.User,
-            'checkoutTime', k1.Checkout_Local_Time,
-            'location', k1.location
-          )
-          FROM keyperdata k1 
-          WHERE k1.StockNumber = latest_vehicle_summary.StockNumber 
-          ORDER BY k1.created_at DESC 
-          LIMIT 1
-        ) as Key1Data,
-        (
-          SELECT JSON_OBJECT(
-            'status', k2.Status,
-            'user', k2.User,
-            'checkoutTime', k2.Checkout_Local_Time,
-            'location', k2.location
-          )
-          FROM keyperdata k2 
-          WHERE k2.StockNumber = latest_vehicle_summary.StockNumber 
-          ORDER BY k2.created_at DESC 
-          LIMIT 1, 1
-        ) as Key2Data
+        Price as 'Current Price'
       FROM latest_vehicle_summary
       WHERE 1=1
-      ${searchTerm ? `AND (
+    `;
+    
+    const params = [];
+
+    // Add search condition if searchTerm exists
+    if (searchTerm) {
+      query += ` AND (
         StockNumber LIKE ? OR
         VIN LIKE ? OR
         Make LIKE ? OR
         Model LIKE ? OR
         Color LIKE ?
-      )` : ''}
-      ORDER BY ${sortBy} ${sortOrder}
-      LIMIT ? OFFSET ?
-    `;
+      )`;
+      const searchPattern = `%${searchTerm}%`;
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+    }
 
-    const params = [
-      ...(searchTerm ? Array(5).fill(`%${searchTerm}%`) : []),
-      Number(limit),
-      (page - 1) * limit
-    ];
+    // Add sorting and pagination
+    query += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()} LIMIT ? OFFSET ?`;
+    params.push(Number(limit), (page - 1) * limit);
 
-    console.log('Executing query with params:', {
-      query,
-      params,
-      searchTerm,
-      limit,
-      page,
-      sortBy,
-      sortOrder
-    });
+    console.log('Executing query:', { query, params });
 
-    const [vehicles] = await newPool.query(query, params);
+    // Execute query with timeout
+    const [vehicles] = await Promise.race([
+      newPool.query(query, params),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Query timeout')), 10000)
+      )
+    ]);
 
-    // Process the JSON strings from Key1Data and Key2Data
-    const processedVehicles = vehicles.map(vehicle => ({
-      ...vehicle,
-      Key1Status: vehicle.Key1Data ? JSON.parse(vehicle.Key1Data).status : null,
-      Key1User: vehicle.Key1Data ? JSON.parse(vehicle.Key1Data).user : null,
-      Key1CheckOutTime: vehicle.Key1Data ? JSON.parse(vehicle.Key1Data).checkoutTime : null,
-      Key1Location: vehicle.Key1Data ? JSON.parse(vehicle.Key1Data).location : null,
-      Key2Status: vehicle.Key2Data ? JSON.parse(vehicle.Key2Data).status : null,
-      Key2User: vehicle.Key2Data ? JSON.parse(vehicle.Key2Data).user : null,
-      Key2CheckOutTime: vehicle.Key2Data ? JSON.parse(vehicle.Key2Data).checkoutTime : null,
-      Key2Location: vehicle.Key2Data ? JSON.parse(vehicle.Key2Data).location : null
-    }));
+    // Get total count
+    const [countResult] = await newPool.query(
+      `SELECT COUNT(*) as total FROM latest_vehicle_summary WHERE 1=1`,
+      searchTerm ? [`%${searchTerm}%`] : []
+    );
+    
+    const total = countResult[0].total;
 
     res.json({
-      vehicles: processedVehicles,
+      vehicles,
       pagination: {
         total,
         page: Number(page),
@@ -139,8 +74,7 @@ router.get('/', authenticate, async (req, res) => {
     console.error('Error fetching vehicles:', error);
     res.status(500).json({ 
       message: 'Error fetching vehicles', 
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: error.message
     });
   }
 });
