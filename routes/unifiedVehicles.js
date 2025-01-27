@@ -6,105 +6,96 @@ const { newPool } = require('../db');
 // Get unified vehicles
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { searchTerm, limit = 25, page = 1, sortBy = 'StockNumber', sortOrder = 'asc' } = req.query;
+    const { 
+      searchTerm, 
+      searchType = 'general',
+      limit = 25, 
+      page = 1
+    } = req.query;
     
-    // First check if the view exists
-    const [viewCheck] = await newPool.query(`
-      SELECT COUNT(*) as viewExists 
-      FROM information_schema.views 
-      WHERE table_schema = DATABASE() 
-      AND table_name = 'latest_vehicle_summary'
-    `);
-
-    if (!viewCheck[0].viewExists) {
-      throw new Error('Required view latest_vehicle_summary does not exist');
+    if (!searchTerm) {
+      return res.json({ vehicles: [], pagination: { total: 0, page: 1, limit: 25, totalPages: 0 }});
     }
 
-    // Build base query
+    // Query vehicle and both key tables with correct table names
     let query = `
       SELECT 
-        StockNumber,
-        Year,
-        Make,
-        Model,
-        VIN,
-        Color,
-        Status,
-        Price as 'Current Price'
-      FROM latest_vehicle_summary
-      WHERE 1=1
+        u.*,
+        k1.Status AS FirstKeyStatus,
+        k1.User AS FirstKeyUser,
+        k1.Location AS FirstKeyLocation,
+        k1.\`Checkout Local Time\` AS FirstKeyCheckoutTime,
+        k2.Status AS SecondKeyStatus,
+        k2.User AS SecondKeyUser,
+        k2.Location AS SecondKeyLocation,
+        k2.\`Checkout Local Time\` AS SecondKeyCheckoutTime,
+        v.StockNumber,
+        v.Status,
+        v.Certified,
+        v.Year,
+        v.Make,
+        v.Model,
+        v.Series,
+        v.Age,
+        v.Color,
+        v.Interior,
+        v.VIN,
+        v.Odometer,
+        v.Equipment,
+        v.Report,
+        v.Recall,
+        v.Warnings,
+        v.Problems,
+        v.RecallStatus,
+        v.Tags,
+        v.vRank,
+        v.PriceRank,
+        v.VinLeads,
+        v.Price,
+        v.ReconStatus,
+        v.Chassis
+      FROM unifiedvehicledata u
+      LEFT JOIN keyperdata k1 ON u.StockNumber = k1.StockNumber
+      LEFT JOIN keyperdata_second_key k2 ON u.StockNumber = k2.StockNumber
+      LEFT JOIN latest_vehicle_summary v ON u.StockNumber = v.StockNumber
+      WHERE 
+        CASE 
+          WHEN ? = 'stock' THEN u.StockNumber LIKE ?
+          ELSE (
+            u.StockNumber LIKE ? OR
+            v.Make LIKE ? OR
+            v.Model LIKE ? OR
+            v.VIN LIKE ? OR
+            v.Color LIKE ?
+          )
+        END
+      ORDER BY u.StockNumber ASC
     `;
     
-    const params = [];
+    const searchPattern = searchType === 'stock' 
+      ? ['stock', `${searchTerm}%`]  // Starts with for stock numbers
+      : ['general', `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`]; // Contains for general search
 
-    // Add search condition if searchTerm exists
-    if (searchTerm) {
-      query += ` AND (
-        StockNumber LIKE ? OR
-        VIN LIKE ? OR
-        Make LIKE ? OR
-        Model LIKE ? OR
-        Color LIKE ?
-      )`;
-      const searchPattern = `%${searchTerm}%`;
-      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
-    }
+    console.log('Executing query:', { query, searchPattern }); // Debug log
 
-    // Add sorting and pagination
-    query += ` ORDER BY ${sortBy} ${sortOrder.toUpperCase()} LIMIT ? OFFSET ?`;
-    params.push(Number(limit), (page - 1) * Number(limit));
-
-    console.log('Executing query:', { query, params });
-
-    // Execute main query with timeout
-    const [vehicles] = await Promise.race([
-      newPool.query(query, params),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database query timeout')), 10000)
-      )
-    ]);
-
-    // Get total count with a simpler query
-    const [countResult] = await newPool.query(
-      `SELECT COUNT(*) as total FROM latest_vehicle_summary WHERE 1=1 ${
-        searchTerm ? 'AND StockNumber LIKE ?' : ''
-      }`,
-      searchTerm ? [`%${searchTerm}%`] : []
-    );
+    const [vehicles] = await newPool.query(query, searchPattern);
     
-    const total = countResult[0].total;
-
     res.json({
-      vehicles,
+      vehicles: vehicles.slice(0, limit),
       pagination: {
-        total,
+        total: vehicles.length,
         page: Number(page),
         limit: Number(limit),
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil(vehicles.length / limit)
       }
     });
 
   } catch (error) {
     console.error('Error in unified vehicles route:', error);
-    
-    // Send appropriate error response
-    if (error.message.includes('timeout')) {
-      res.status(504).json({
-        message: 'Query timed out',
-        error: error.message
-      });
-    } else if (error.code === 'ER_NO_SUCH_TABLE') {
-      res.status(500).json({
-        message: 'Database table not found',
-        error: error.message
-      });
-    } else {
-      res.status(500).json({
-        message: 'Error fetching vehicles',
-        error: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      });
-    }
+    res.status(500).json({
+      message: 'Error fetching vehicles',
+      error: error.message
+    });
   }
 });
 
@@ -148,4 +139,4 @@ router.get('/debug', authenticate, async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;
