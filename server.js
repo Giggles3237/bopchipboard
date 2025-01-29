@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 5000;
 
 // Updated CORS configuration
 app.use(cors({
-    origin: '*',  // Allow all origins during development
+    origin: ['https://bopchips.netlify.app', 'https://www.bopchips.netlify.app', 'http://localhost:3000', 'http://localhost:5001'], // Production and local development URLs
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
