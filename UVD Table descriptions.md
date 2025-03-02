@@ -1,12 +1,13 @@
 UVD Table descriptions
 
 
-mysql> DESCRIBE keyperdata;
+mysql> describe keyperdata
+    -> ;
 +---------------------+-----------------+------+-----+-------------------+-----------------------------------------------+
 | Field               | Type            | Null | Key | Default           | Extra                                         |
 +---------------------+-----------------+------+-----+-------------------+-----------------------------------------------+
 | my_row_id           | bigint unsigned | NO   | PRI | NULL              | auto_increment                                |
-| StockNumber         | varchar(100)    | YES  |     | NULL              |                                               |
+| StockNumber         | varchar(100)    | YES  | MUL | NULL              |                                               |
 | Status              | varchar(50)     | YES  |     | NULL              |                                               |
 | User                | varchar(100)    | YES  |     | NULL              |                                               |
 | Checkout Local Time | varchar(50)     | YES  |     | NULL              |                                               |
@@ -19,6 +20,40 @@ mysql> DESCRIBE keyperdata;
 | created_at          | timestamp       | YES  |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED                             |
 | updated_at          | timestamp       | YES  |     | CURRENT_TIMESTAMP | DEFAULT_GENERATED on update CURRENT_TIMESTAMP |
 +---------------------+-----------------+------+-----+-------------------+-----------------------------------------------+
+13 rows in set (0.07 sec)
+
+mysql> SHOW TABLES;
++------------------------------+
+| Tables_in_unifiedvehicledata |
++------------------------------+
+| keyperdata                   |
+| keyperdata_second_key        |
+| latest_key_data              |
+| latest_vehicle_summary       |
+| materialized_vehicle_summary |
+| temp_vehicle_data            |
+| unified_vehicles             |
+| unifiedvehicledata           |
+| vehicles                     |
++------------------------------+
+9 rows in set (0.04 sec)
+
+mysql> DESCRIBE keyperdata_second_key;
++---------------------+-----------------+------+-----+---------+----------------+
+| Field               | Type            | Null | Key | Default | Extra          |
++---------------------+-----------------+------+-----+---------+----------------+
+| my_row_id           | bigint unsigned | NO   | PRI | NULL    | auto_increment |
+| StockNumber         | varchar(100)    | NO   | MUL | NULL    |                |
+| Status              | varchar(50)     | YES  |     | NULL    |                |
+| User                | varchar(100)    | YES  |     | NULL    |                |
+| Checkout Local Time | varchar(50)     | YES  |     | NULL    |                |
+| description         | text            | YES  |     | NULL    |                |
+| removal_type        | varchar(50)     | YES  |     | NULL    |                |
+| cabinet             | varchar(100)    | YES  |     | NULL    |                |
+| system              | varchar(100)    | YES  |     | NULL    |                |
+| location            | varchar(100)    | YES  |     | NULL    |                |
+| reason              | text            | YES  |     | NULL    |                |
++---------------------+-----------------+------+-----+---------+----------------+
 
 mysql> DESCRIBE unifiedvehicledata;
 +---------------+-----------------+------+-----+-------------------+-----------------------------------------------+
@@ -71,45 +106,43 @@ mysql> SHOW CREATE VIEW latest_vehicle_summary;
 | latest_vehicle_summary | CREATE ALGORITHM=UNDEFINED DEFINER=`clasko`@`%` SQL SECURITY DEFINER VIEW `latest_vehicle_summary` AS with `rankedvehicles` as (select `unifiedvehicledata`.`Stock #` AS `Stock #`,`unifiedvehicledata`.`New/Used` AS `New/Used`,`unifiedvehicledata`.`Certified` AS `Certified`,`unifiedvehicledata`.`Year` AS `Year`,`unifiedvehicledata`.`Make` AS `Make`,`unifiedvehicledata`.`Model` AS `Model`,`unifiedvehicledata`.`Series` AS `Series`,`unifiedvehicledata`.`Age` AS `Age`,`unifiedvehicledata`.`Color` AS `Color`,`unifiedvehicledata`.`Interior` AS `Interior`,`unifiedvehicledata`.`VIN` AS `VIN`,`unifiedvehicledata`.`Odometer` AS `Odometer`,`unifiedvehicledata`.`Starred Equip` AS `Starred Equip`,`unifiedvehicledata`.`Report` AS `Report`,`unifiedvehicledata`.`Recall` AS `Recall`,`unifiedvehicledata`.`Warnings` AS `Warnings`,`unifiedvehicledata`.`Problems` AS `Problems`,`unifiedvehicledata`.`Recall Status` AS `Recall Status`,`unifiedvehicledata`.`Tags` AS `Tags`,`unifiedvehicledata`.`vRank` AS `vRank`,`unifiedvehicledata`.`Price Rank` AS `Price Rank`,`unifiedvehicledata`.`Vin Leads` AS `Vin Leads`,`unifiedvehicledata`.`Current Price` AS `Current Price`,`unifiedvehicledata`.`DIS` AS `DIS`,`unifiedvehicledata`.`DIR` AS `DIR`,`unifiedvehicledata`.`Recon Step` AS `Recon Step`,`unifiedvehicledata`.`chassis` AS `chassis`,row_number() OVER (PARTITION BY `unifiedvehicledata`.`Stock #` ORDER BY `unifiedvehicledata`.`my_row_id` desc )  AS `row_num` from `unifiedvehicledata`) select `rankedvehicles`.`Stock #` AS `StockNumber`,`rankedvehicles`.`Year` AS `Year`,`rankedvehicles`.`Make` AS `Make`,`rankedvehicles`.`Model` AS `Model`,`rankedvehicles`.`VIN` AS `VIN`,`rankedvehicles`.`Color` AS `Color`,`rankedvehicles`.`Interior` AS `Interior`,`rankedvehicles`.`New/Used` AS `Status`,`rankedvehicles`.`Certified` AS `Certified`,`rankedvehicles`.`Series` AS `Series`,`rankedvehicles`.`Age` AS `Age`,`rankedvehicles`.`Odometer` AS `Odometer`,`rankedvehicles`.`Starred Equip` AS `Equipment`,`rankedvehicles`.`Report` AS `Report`,`rankedvehicles`.`Recall` AS `Recall`,`rankedvehicles`.`Warnings` AS `Warnings`,`rankedvehicles`.`Problems` AS `Problems`,`rankedvehicles`.`Recall Status` AS `RecallStatus`,`rankedvehicles`.`Tags` AS `Tags`,`rankedvehicles`.`vRank` AS `vRank`,`rankedvehicles`.`Price Rank` AS `PriceRank`,`rankedvehicles`.`Vin Leads` AS `VinLeads`,`rankedvehicles`.`Current Price` AS `Price`,`rankedvehicles`.`Recon Step` AS `ReconStatus`,`rankedvehicles`.`chassis` AS `Chassis` from `rankedvehicles` where (`rankedvehicles`.`row_num` = 1) | cp850                | cp850_general_ci     |
 +------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------+----------------------+
 
-mysql> DESCRIBE latest_vehicle_summary;
-+--------------+--------+------+-----+---------+-------+
-| Field        | Type   | Null | Key | Default | Extra |
-+--------------+--------+------+-----+---------+-------+
-| StockNumber  | text   | YES  |     | NULL    |       |
-| Status       | text   | YES  |     | NULL    |       |
-| Certified    | text   | YES  |     | NULL    |       |
-| Year         | bigint | YES  |     | NULL    |       |
-| Make         | text   | YES  |     | NULL    |       |
-| Model        | text   | YES  |     | NULL    |       |
-| Series       | text   | YES  |     | NULL    |       |
-| Age          | text   | YES  |     | NULL    |       |
-| Color        | text   | YES  |     | NULL    |       |
-| Interior     | text   | YES  |     | NULL    |       |
-| VIN          | text   | YES  |     | NULL    |       |
-| Odometer     | text   | YES  |     | NULL    |       |
-| Equipment    | text   | YES  |     | NULL    |       |
-| Report       | text   | YES  |     | NULL    |       |
-| Recall       | text   | YES  |     | NULL    |       |
-| Warnings     | text   | YES  |     | NULL    |       |
-| Problems     | text   | YES  |     | NULL    |       |
-| RecallStatus | text   | YES  |     | NULL    |       |
-| Tags         | text   | YES  |     | NULL    |       |
-| vRank        | text   | YES  |     | NULL    |       |
-| PriceRank    | text   | YES  |     | NULL    |       |
-| VinLeads     | bigint | YES  |     | NULL    |       |
-| Price        | text   | YES  |     | NULL    |       |
-| ReconStatus  | text   | YES  |     | NULL    |       |
-| Chassis      | text   | YES  |     | NULL    |       |
-+--------------+--------+------+-----+---------+-------+
-25 rows in set (0.03 sec)
+mysql> describe latest_vehicle_summary;
++--------------+-------------+------+-----+---------+-------+
+| Field        | Type        | Null | Key | Default | Extra |
++--------------+-------------+------+-----+---------+-------+
+| StockNumber  | varchar(20) | YES  |     | NULL    |       |
+| Status       | mediumtext  | YES  |     | NULL    |       |
+| Certified    | mediumtext  | YES  |     | NULL    |       |
+| Year         | bigint      | YES  |     | NULL    |       |
+| Make         | mediumtext  | YES  |     | NULL    |       |
+| Model        | mediumtext  | YES  |     | NULL    |       |
+| Series       | mediumtext  | YES  |     | NULL    |       |
+| Age          | mediumtext  | YES  |     | NULL    |       |
+| Color        | mediumtext  | YES  |     | NULL    |       |
+| Interior     | mediumtext  | YES  |     | NULL    |       |
+| VIN          | mediumtext  | YES  |     | NULL    |       |
+| Odometer     | mediumtext  | YES  |     | NULL    |       |
+| Equipment    | mediumtext  | YES  |     | NULL    |       |
+| Report       | mediumtext  | YES  |     | NULL    |       |
+| Recall       | mediumtext  | YES  |     | NULL    |       |
+| Warnings     | mediumtext  | YES  |     | NULL    |       |
+| Problems     | mediumtext  | YES  |     | NULL    |       |
+| RecallStatus | mediumtext  | YES  |     | NULL    |       |
+| Tags         | mediumtext  | YES  |     | NULL    |       |
+| vRank        | mediumtext  | YES  |     | NULL    |       |
+| PriceRank    | mediumtext  | YES  |     | NULL    |       |
+| VinLeads     | bigint      | YES  |     | NULL    |       |
+| Price        | mediumtext  | YES  |     | NULL    |       |
+| ReconStatus  | varchar(50) | YES  |     | NULL    |       |
+| Chassis      | varchar(50) | YES  |     | NULL    |       |
++--------------+-------------+------+-----+---------+-------+
 
 mysql> SELECT * FROM latest_vehicle_summary WHERE StockNumber LIKE '%1305%';
 +-------------+--------+-----------+------+------+----------------------+--------+------+---------------+----------+-------------------+----------+-----------+--------+--------+----------+----------+--------------+------+-------+-----------+----------+-------+-------------+---------+
 | StockNumber | Status | Certified | Year | Make | Model                | Series | Age  | Color         | Interior | VIN               | Odometer | Equipment | Report | Recall | Warnings | Problems | RecallStatus | Tags | vRank | PriceRank | VinLeads | Price | ReconStatus | Chassis |
 +-------------+--------+-----------+------+------+----------------------+--------+------+---------------+----------+-------------------+----------+-----------+--------+--------+----------+----------+--------------+------+-------+-----------+----------+-------+-------------+---------+
-| PP1305      | Used   | NULL      | 2019 | BMW  | 7 Series 750i xDrive | NULL   | NULL | Gray Metallic | NULL     | WBA7F2C59KB240023 | 43625.0  | NULL      | NULL   | NULL   | NULL     | NULL     | NULL         | NULL | NULL  | NULL      |     NULL | NULL  | 4h 29m      | 2d 18h  |
+| PP1305      | Used   | NULL      | 2019 | BMW  | 7 Series 750i xDrive | NULL   | NULL | Gray Metallic | NULL     | WBA7F2C59KB240023 | 43625.0  | NULL      | NULL   | NULL   | NULL     | NULL     | NULL         | NULL | NULL  | NULL      |     NULL | NULL  | Wholesale   | NULL    |
 +-------------+--------+-----------+------+------+----------------------+--------+------+---------------+----------+-------------------+----------+-----------+--------+--------+----------+----------+--------------+------+-------+-----------+----------+-------+-------------+---------+
-1 row in set (0.07 sec)
 
 
 This is the python script I use to upload the files to the database.
@@ -259,29 +292,40 @@ def process_file(file_path, file_type, conn, progress_label, progress_bar, root)
                         row_dict[column] = str(value) if not isinstance(value, (int, float)) else value
 
                 if file_type == "KeyPerData":
+                    stock_num = str(row_dict.get("StockNumber", "")).split('.')[0]
+                    
                     if '.2' in str(row_dict.get("StockNumber", "")):
                         # Process second key
-                        stock_num = str(row_dict.get("StockNumber", "")).split('.')[0]
                         query = """
-                            INSERT INTO keyperdata_second_key
-                            (StockNumber, Status, User, `Checkout Local Time`, description)
-                            VALUES (%s, %s, %s, %s, %s)
+                            INSERT INTO keyperdata_second_key 
+                            (StockNumber, Status, User, `Checkout Local Time`, description, 
+                            removal_type, cabinet, `system`, location, reason)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ON DUPLICATE KEY UPDATE 
                             Status=VALUES(Status),
                             User=VALUES(User),
                             `Checkout Local Time`=VALUES(`Checkout Local Time`),
-                            description=VALUES(description)
+                            description=VALUES(description),
+                            removal_type=VALUES(removal_type),
+                            cabinet=VALUES(cabinet),
+                            `system`=VALUES(`system`),
+                            location=VALUES(location),
+                            reason=VALUES(reason)
                         """
                         cursor.execute(query, (
                             stock_num,
                             row_dict.get("Status"),
                             row_dict.get("User"),
                             row_dict.get("Checkout Local Time"),
-                            row_dict.get("description")
+                            row_dict.get("description"),
+                            row_dict.get("removal_type"),
+                            row_dict.get("cabinet"),
+                            row_dict.get("system"),
+                            row_dict.get("location"),
+                            row_dict.get("reason")
                         ))
                     else:
                         # Process first key
-                        stock_num = str(row_dict.get("StockNumber", "")).split('.')[0]
                         query = """
                             INSERT INTO keyperdata 
                             (StockNumber, Status, User, `Checkout Local Time`, description, 
@@ -311,24 +355,21 @@ def process_file(file_path, file_type, conn, progress_label, progress_bar, root)
                             row_dict.get("reason")
                         ))
                 else:
-                    # For all other file types
+                    # Original code for other file types
                     fields = []
                     values = []
                     updates = []
                     
-                    # Add Stock # as the first field
                     fields.append("`Stock #`")
                     values.append(row_dict.get("Stock #"))
                     
-                    # Add other non-null fields
                     for field in ["VIN", "Year", "Make", "Model", "Color", "Odometer", "Recon Step", "chassis"]:
                         if field in row_dict and row_dict[field] is not None:
                             fields.append(f"`{field}`")
                             values.append(row_dict[field])
                             updates.append(f"`{field}`=VALUES(`{field}`)")
                     
-                    # Construct the query
-                    if updates:  # Only proceed if we have fields to update
+                    if updates:
                         placeholders = ', '.join(['%s'] * len(values))
                         query = f"""
                             INSERT INTO unifiedvehicledata 

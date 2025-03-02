@@ -27,7 +27,7 @@ router.put('/change-password', authenticate, async (req, res) => {
     }
 
     // Get user's current password hash
-    const [users] = await db.query('SELECT password FROM users WHERE id = ?', [userId]);
+    const [users] = await oldPool.query('SELECT password FROM users WHERE id = ?', [userId]);
     
     if (users.length === 0) {
       return res.status(404).json({ message: 'User not found' });
@@ -43,7 +43,7 @@ router.put('/change-password', authenticate, async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update password
-    await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+    await oldPool.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
 
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
@@ -141,7 +141,7 @@ router.put('/:id', authenticate, async (req, res) => {
     const updates = req.body;
     
     // First, get the role_id based on the role name
-    const [roles] = await db.query('SELECT id FROM roles WHERE name = ?', [updates.role]);
+    const [roles] = await oldPool.query('SELECT id FROM roles WHERE name = ?', [updates.role]);
     
     if (roles.length === 0) {
       return res.status(400).json({ message: 'Invalid role specified' });
@@ -149,12 +149,12 @@ router.put('/:id', authenticate, async (req, res) => {
 
     // Get or create organization_id
     let organizationId;
-    const [orgs] = await db.query('SELECT id FROM organizations WHERE name = ?', [updates.organization]);
+    const [orgs] = await oldPool.query('SELECT id FROM organizations WHERE name = ?', [updates.organization]);
     if (orgs.length > 0) {
       organizationId = orgs[0].id;
     } else {
       // Create new organization if it doesn't exist
-      const [result] = await db.query('INSERT INTO organizations (name) VALUES (?)', [updates.organization]);
+      const [result] = await oldPool.query('INSERT INTO organizations (name) VALUES (?)', [updates.organization]);
       organizationId = result.insertId;
     }
     
@@ -174,7 +174,7 @@ router.put('/:id', authenticate, async (req, res) => {
     }
 
     // Update the user
-    const [result] = await db.query(
+    const [result] = await oldPool.query(
       'UPDATE users SET ? WHERE id = ?',
       [updateData, userId]
     );
@@ -253,7 +253,7 @@ router.post('/', authenticate, checkPermission(['edit_users']), async (req, res)
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Get role_id from roles table
-    const [roles] = await db.query('SELECT id FROM roles WHERE name = ?', [role]);
+    const [roles] = await oldPool.query('SELECT id FROM roles WHERE name = ?', [role]);
     if (roles.length === 0) {
       return res.status(400).json({ message: 'Invalid role' });
     }
@@ -261,16 +261,16 @@ router.post('/', authenticate, checkPermission(['edit_users']), async (req, res)
 
     // Get or create organization
     let organizationId;
-    const [orgs] = await db.query('SELECT id FROM organizations WHERE name = ?', [organization]);
+    const [orgs] = await oldPool.query('SELECT id FROM organizations WHERE name = ?', [organization]);
     if (orgs.length > 0) {
       organizationId = orgs[0].id;
     } else {
-      const [result] = await db.query('INSERT INTO organizations (name) VALUES (?)', [organization]);
+      const [result] = await oldPool.query('INSERT INTO organizations (name) VALUES (?)', [organization]);
       organizationId = result.insertId;
     }
 
     // Insert new user
-    const [result] = await db.query(`
+    const [result] = await oldPool.query(`
       INSERT INTO users (name, email, password, role_id, organization_id, status)
       VALUES (?, ?, ?, ?, ?, ?)
     `, [name, email, hashedPassword, roleId, organizationId, status]);
