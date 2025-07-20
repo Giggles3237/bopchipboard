@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const db = require('../db');
+const { sendSaleAddedWebhook } = require('../utils/webhook');
 
 // Get notifications
 router.get('/', authenticate, (req, res) => {
@@ -69,6 +70,38 @@ router.put('/:id/read', authenticate, (req, res) => {
     }
     res.json({ message: 'Notification marked as read' });
   });
+});
+
+// Teams notification endpoint
+router.post('/teams', authenticate, async (req, res) => {
+  try {
+    const { sale, user } = req.body;
+    
+    console.log('Teams notification request received:', { sale, user });
+
+    // Send webhook to Azure Logic App
+    const userData = {
+      userId: req.auth.userId,
+      organizationId: req.auth.organizationId,
+      userName: user?.name || 'Unknown User'
+    };
+
+    const webhookResult = await sendSaleAddedWebhook(sale, userData);
+    
+    if (webhookResult) {
+      console.log('Teams notification sent successfully via webhook');
+      res.json({ message: 'Teams notification sent successfully' });
+    } else {
+      console.error('Failed to send Teams notification via webhook');
+      res.status(500).json({ message: 'Failed to send Teams notification' });
+    }
+  } catch (error) {
+    console.error('Error sending Teams notification:', error);
+    res.status(500).json({ 
+      message: 'Error sending Teams notification',
+      error: error.message 
+    });
+  }
 });
 
 module.exports = router;

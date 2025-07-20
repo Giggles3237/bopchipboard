@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, checkPermission } = require('../middleware/auth');
 const { oldPool } = require('../db');
+const { sendSaleAddedWebhook, sendSaleDeletedWebhook } = require('../utils/webhook');
 
 // Get all sales
 router.get('/', authenticate, async (req, res) => {
@@ -74,6 +75,31 @@ router.post('/', authenticate, async (req, res) => {
     const [result] = await oldPool.query(query, values);
 
     console.log('Insert result:', result);
+
+    // Send webhook notification for sale addition
+    const saleData = {
+      id: result.insertId,
+      clientName,
+      stockNumber,
+      year,
+      make,
+      model,
+      color,
+      advisor,
+      delivered,
+      deliveryDate,
+      type
+    };
+
+    const userData = {
+      userId: req.auth.userId,
+      organizationId: req.auth.organizationId
+    };
+
+    // Send webhook asynchronously (don't wait for it)
+    sendSaleAddedWebhook(saleData, userData).catch(error => {
+      console.error('Webhook error (non-blocking):', error);
+    });
 
     res.status(201).json({
       message: 'Sale created successfully',
@@ -149,12 +175,26 @@ router.delete('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ message: 'Sale not found' });
     }
 
+    // Store sale data before deletion for webhook
+    const saleData = results[0];
+
     // Perform delete
     const [deleteResult] = await oldPool.query('DELETE FROM vehicle_sales WHERE id = ?', [saleId]);
 
     if (deleteResult.affectedRows === 0) {
       return res.status(500).json({ message: 'Error deleting sale' });
     }
+
+    // Send webhook notification for sale deletion
+    const userData = {
+      userId: req.auth.userId,
+      organizationId: req.auth.organizationId
+    };
+
+    // Send webhook asynchronously (don't wait for it)
+    sendSaleDeletedWebhook(saleData, userData).catch(error => {
+      console.error('Webhook error (non-blocking):', error);
+    });
 
     res.json({ message: 'Sale deleted successfully' });
   } catch (error) {
