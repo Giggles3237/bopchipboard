@@ -1,6 +1,7 @@
 const axios = require('axios');
 
-const WEBHOOK_URL = 'https://prod-130.westus.logic.azure.com:443/workflows/ba2ffc1374734486b7147d7cedd1d94d/triggers/manual/paths/invoke?api-version=2016-06-01';
+// Use environment variable for webhook URL
+const WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL || 'https://prod-71.westus.logic.azure.com:443/workflows/b76a5e4ad5ea49978990e86679806fc4/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=TXM1g4mf6lpViRgQ0JrYAa59-TAvg-UjC24ZZECDFzI';
 
 /**
  * Send webhook notification for sales operations
@@ -10,7 +11,77 @@ const WEBHOOK_URL = 'https://prod-130.westus.logic.azure.com:443/workflows/ba2ff
  */
 async function sendSalesWebhook(action, saleData, userData = {}) {
   try {
+    // Check if webhook URL is configured
+    if (!WEBHOOK_URL) {
+      console.warn('TEAMS_WEBHOOK_URL environment variable not set, skipping webhook');
+      return false;
+    }
+
+    // Format the payload to match what your Power Automate flow expects
     const payload = {
+      attachments: [
+        {
+          contentType: "application/vnd.microsoft.card.adaptive",
+          content: {
+            type: "AdaptiveCard",
+            version: "1.0",
+            body: [
+              {
+                type: "TextBlock",
+                size: "Large",
+                weight: "Bolder",
+                text: `Sale ${action === 'add' ? 'Added' : 'Deleted'} - BopChipboard`
+              },
+              {
+                type: "TextBlock",
+                text: `**Time:** ${new Date().toLocaleString()}`,
+                wrap: true
+              },
+              {
+                type: "TextBlock",
+                text: `**Client:** ${saleData.clientName}`,
+                wrap: true
+              },
+              {
+                type: "TextBlock",
+                text: `**Stock Number:** ${saleData.stockNumber}`,
+                wrap: true
+              },
+              {
+                type: "TextBlock",
+                text: `**Vehicle:** ${saleData.year} ${saleData.make} ${saleData.model}`,
+                wrap: true
+              },
+              {
+                type: "TextBlock",
+                text: `**Color:** ${saleData.color}`,
+                wrap: true
+              },
+              {
+                type: "TextBlock",
+                text: `**Advisor:** ${saleData.advisor}`,
+                wrap: true
+              },
+              {
+                type: "TextBlock",
+                text: `**Delivered:** ${saleData.delivered ? 'Yes' : 'No'}`,
+                wrap: true
+              },
+              {
+                type: "TextBlock",
+                text: `**Delivery Date:** ${saleData.deliveryDate}`,
+                wrap: true
+              },
+              {
+                type: "TextBlock",
+                text: `**Type:** ${saleData.type}`,
+                wrap: true
+              }
+            ]
+          }
+        }
+      ],
+      // Also include the raw data for any other processing
       action: action,
       timestamp: new Date().toISOString(),
       sale: saleData,
@@ -37,7 +108,6 @@ async function sendSalesWebhook(action, saleData, userData = {}) {
     });
     
     // Don't throw error to avoid breaking the main flow
-    // The webhook failure shouldn't prevent the sale operation
     return false;
   }
 }
