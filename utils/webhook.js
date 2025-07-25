@@ -17,6 +17,33 @@ async function sendSalesWebhook(action, saleData, userData = {}) {
       return false;
     }
 
+    // Determine color scheme based on vehicle type
+    let titleColor = "Accent"; // Default
+    let backgroundColor = "Default";
+    
+    if (saleData.type) {
+      const type = saleData.type.toLowerCase();
+      if (type.includes('new bmw')) {
+        titleColor = "Good"; // Blue for New BMW
+        backgroundColor = "Good";
+      } else if (type.includes('used')) {
+        titleColor = "Warning"; // Blue with white text for Used
+        backgroundColor = "Warning";
+      } else if (type.includes('new mini')) {
+        titleColor = "Good"; // Green for New MINI
+        backgroundColor = "Good";
+      }
+    }
+
+    // For deletions, use a different color scheme
+    if (action === 'delete') {
+      titleColor = "Attention"; // Red for deletions
+      backgroundColor = "Attention";
+    }
+
+    // Determine title based on action
+    const title = action === 'add' ? 'Vehicle Sold - ChipBoard Bot' : 'Sale Deleted - ChipBoard Bot';
+
     // Format the payload to match what your Power Automate flow expects
     const payload = {
       attachments: [
@@ -25,57 +52,45 @@ async function sendSalesWebhook(action, saleData, userData = {}) {
           content: {
             type: "AdaptiveCard",
             version: "1.0",
+            style: backgroundColor !== "Default" ? backgroundColor : undefined,
             body: [
               {
                 type: "TextBlock",
                 size: "Large",
                 weight: "Bolder",
-                text: `Sale ${action === 'add' ? 'Added' : 'Deleted'} - BopChipboard`
-              },
-              {
-                type: "TextBlock",
-                text: `**Time:** ${new Date().toLocaleString()}`,
-                wrap: true
+                color: titleColor,
+                text: title
               },
               {
                 type: "TextBlock",
                 text: `**Client:** ${saleData.clientName}`,
-                wrap: true
+                wrap: true,
+                spacing: "Medium"
               },
               {
                 type: "TextBlock",
                 text: `**Stock Number:** ${saleData.stockNumber}`,
-                wrap: true
-              },
-              {
-                type: "TextBlock",
-                text: `**Vehicle:** ${saleData.year} ${saleData.make} ${saleData.model}`,
-                wrap: true
+                wrap: true,
+                spacing: "Small"
               },
               {
                 type: "TextBlock",
                 text: `**Color:** ${saleData.color}`,
-                wrap: true
+                wrap: true,
+                spacing: "Small"
+              },
+              {
+                type: "TextBlock",
+                text: `**${saleData.year} ${saleData.make} ${saleData.model}**`,
+                wrap: true,
+                spacing: "Small",
+                weight: "Bolder"
               },
               {
                 type: "TextBlock",
                 text: `**Advisor:** ${saleData.advisor}`,
-                wrap: true
-              },
-              {
-                type: "TextBlock",
-                text: `**Delivered:** ${saleData.delivered ? 'Yes' : 'No'}`,
-                wrap: true
-              },
-              {
-                type: "TextBlock",
-                text: `**Delivery Date:** ${saleData.deliveryDate}`,
-                wrap: true
-              },
-              {
-                type: "TextBlock",
-                text: `**Type:** ${saleData.type}`,
-                wrap: true
+                wrap: true,
+                spacing: "Medium"
               }
             ]
           }
