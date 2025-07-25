@@ -4,8 +4,8 @@
   "description": "",
   "main": "server.js",
   "engines": {
-    "node": "20.x",
-    "npm": "10.x"
+    "node": "18.x",
+    "npm": "9.x"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -20,7 +20,7 @@
     "cors": "^2.8.5",
     "csv-parser": "^3.0.0",
     "dotenv": "^16.4.5",
-    "express": "4.18.2",
+    "express": "^4.18.2",
     "express-jwt": "^8.5.1",
     "jsonwebtoken": "^9.0.2",
     "lodash.debounce": "^4.0.8",
@@ -30,5 +30,8 @@
     "react-datepicker": "^7.2.0",
     "sqlite3": "^5.1.7",
     "xlsx": "^0.18.5"
+  },
+  "overrides": {
+    "gopd": "1.0.1"
   }
 }
