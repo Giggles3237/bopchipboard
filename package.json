@@ -32,6 +32,8 @@
     "xlsx": "^0.18.5"
   },
   "overrides": {
-    "gopd": "1.0.1"
+    "gopd": "1.0.1",
+    "get-intrinsic": "1.2.4",
+    "side-channel": "1.0.4"
   }
 }
