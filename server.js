@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const { newPool } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -19,9 +20,15 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'Server is working!' });
 });
 
-// Basic sales route without database
-app.get('/api/sales', (req, res) => {
-  res.json([{ id: 1, message: 'Sales endpoint working' }]);
+// Basic sales route with database
+app.get('/api/sales', async (req, res) => {
+  try {
+    const [results] = await newPool.query('SELECT * FROM vehicle_sales ORDER BY deliveryDate DESC LIMIT 10');
+    res.json(results);
+  } catch (error) {
+    console.error('Database error:', error);
+    res.status(500).json({ message: 'Database error', error: error.message });
+  }
 });
 
 // Error handling middleware
