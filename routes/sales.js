@@ -165,6 +165,7 @@ router.put('/:id', authenticate, async (req, res) => {
 
 // Delete sale
 router.delete('/:id', authenticate, async (req, res) => {
+  console.log('DELETE /sales/:id called with id:', req.params.id);
   try {
     const saleId = req.params.id;
 
