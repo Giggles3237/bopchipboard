@@ -15,6 +15,8 @@ app.use(cors({
 }));
 app.use(express.json());
 
+
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
@@ -24,6 +26,7 @@ const activitiesRoutes = require('./routes/activities');
 const goalsRoutes = require('./routes/goals');
 const unifiedVehiclesRoutes = require('./routes/unifiedVehicles');
 const keysRouter = require('./routes/keys');
+const getreadyRoutes = require('./routes/getready');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -34,6 +37,25 @@ app.use('/api/activities', activitiesRoutes);
 app.use('/api/goals', goalsRoutes);
 app.use('/api/unified-vehicles', unifiedVehiclesRoutes);
 app.use('/api/keys', keysRouter);
+app.use('/api/getready', getreadyRoutes);
+
+// Test route directly in server.js
+app.post('/api/test-email', (req, res) => {
+  console.log('📧 Direct test route hit');
+  res.json({ message: 'Direct test route working!' });
+});
+
+// Debug: Log all registered routes
+console.log('🔧 Registered API routes:');
+console.log('- /api/auth');
+console.log('- /api/users');
+console.log('- /api/sales');
+console.log('- /api/notifications');
+console.log('- /api/activities');
+console.log('- /api/goals');
+console.log('- /api/unified-vehicles');
+console.log('- /api/keys');
+console.log('- /api/getready');
 
 // Error handling middleware
 app.use((err, req, res, next) => {
