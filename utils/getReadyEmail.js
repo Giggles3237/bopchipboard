@@ -54,7 +54,7 @@ Submitted By: ${submittedBy} @ ${new Date().toLocaleString()}
   };
 }
 
-async function sendGetReadyEmail(data, recipients = []) {
+async function sendGetReadyEmail(data, recipients = [], senderEmail = null) {
   try {
     // Create transporter
     const transporter = nodemailer.createTransport(emailConfig);
@@ -94,6 +94,11 @@ async function sendGetReadyEmail(data, recipients = []) {
         'X-Mailer': 'Chipboard System'
       }
     };
+    
+    // Add sender to CC if provided
+    if (senderEmail) {
+      mailOptions.cc = senderEmail;
+    }
     
     // Send email
     const info = await transporter.sendMail(mailOptions);

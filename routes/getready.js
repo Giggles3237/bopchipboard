@@ -56,8 +56,8 @@ router.post('/send-email', authenticate, async (req, res) => {
       submittedBy: submittedBy || req.auth.userName
     };
 
-    // Send email
-    await sendGetReadyEmail(getReadyData);
+    // Send email with sender in CC
+    await sendGetReadyEmail(getReadyData, [], req.auth.email);
 
     res.status(200).json({
       message: 'Get Ready email sent successfully',
