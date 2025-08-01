@@ -8,7 +8,6 @@
 # testing
 /coverage
 /uploads
-/utils
 # production
 /build
 
@@ -17,6 +16,7 @@
 .env.local
 .env.development.local
 .env.development
+.env.txt
 .env.test.local
 .env.production.local
 

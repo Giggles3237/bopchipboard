@@ -7,18 +7,31 @@ const { sendSaleAddedWebhook, sendSaleDeletedWebhook } = require('../utils/webho
 // Get all sales
 router.get('/', authenticate, async (req, res) => {
   try {
+    console.log('🔍 Sales route hit - attempting database query...');
+    
+    // Test database connection first
+    const [connectionTest] = await oldPool.query('SELECT 1 as test');
+    console.log('✅ Database connection successful');
+    
     // Simple query to get ALL sales
     const [results] = await oldPool.query('SELECT * FROM vehicle_sales ORDER BY deliveryDate DESC');
     
-    console.log('Query results:', {
+    console.log('✅ Query results:', {
       totalSales: results.length,
       uniqueAdvisors: [...new Set(results.map(sale => sale.advisor))]
     });
     
     res.json(results);
   } catch (error) {
-    console.error('Error in sales route:', error);
-    res.status(500).json({ message: 'Error fetching sales data' });
+    console.error('❌ Error in sales route:', error);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error sqlMessage:', error.sqlMessage);
+    res.status(500).json({ 
+      message: 'Error fetching sales data',
+      error: error.message,
+      code: error.code 
+    });
   }
 });
 
