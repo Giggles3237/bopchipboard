@@ -81,7 +81,9 @@ router.get('/', authenticate, checkPermission(['view_users']), async (req, res) 
     const [results] = await oldPool.query(`
       SELECT u.*, 
              r.name as role_name,
-             o.name as organization_name 
+             o.name as organization_name,
+             u.ethos_training_complete,
+             u.bmw_training_complete
       FROM users u
       LEFT JOIN roles r ON u.role_id = r.id
       LEFT JOIN organizations o ON u.organization_id = o.id
@@ -140,6 +142,9 @@ router.put('/:id', authenticate, async (req, res) => {
     const userId = req.params.id;
     const updates = req.body;
     
+    console.log('Updating user:', userId);
+    console.log('Update data received:', updates);
+    
     // First, get the role_id based on the role name
     const [roles] = await oldPool.query('SELECT id FROM roles WHERE name = ?', [updates.role]);
     
@@ -164,8 +169,12 @@ router.put('/:id', authenticate, async (req, res) => {
       email: updates.email,
       organization_id: organizationId,
       status: updates.status,
-      role_id: roles[0].id
+      role_id: roles[0].id,
+      ethos_training_complete: updates.ethos_training_complete || false,
+      bmw_training_complete: updates.bmw_training_complete || false
     };
+
+    console.log('Prepared update data:', updateData);
 
     // Only include password if it's provided and not empty
     if (updates.password && updates.password.trim() !== '') {
@@ -178,6 +187,8 @@ router.put('/:id', authenticate, async (req, res) => {
       'UPDATE users SET ? WHERE id = ?',
       [updateData, userId]
     );
+
+    console.log('Update result:', result);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'User not found' });
@@ -271,9 +282,9 @@ router.post('/', authenticate, checkPermission(['edit_users']), async (req, res)
 
     // Insert new user
     const [result] = await oldPool.query(`
-      INSERT INTO users (name, email, password, role_id, organization_id, status)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `, [name, email, hashedPassword, roleId, organizationId, status]);
+      INSERT INTO users (name, email, password, role_id, organization_id, status, ethos_training_complete, bmw_training_complete)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [name, email, hashedPassword, roleId, organizationId, status, false, false]);
 
     res.status(201).json({ 
       message: 'User created successfully',

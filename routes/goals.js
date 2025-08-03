@@ -25,22 +25,25 @@ router.get('/team/test/:month', authenticate, async (req, res) => {
     }
 });
 
-router.get('/team/:month', authenticate, async (req, res) => {
+// Get team goal (sum of individual goals)
+router.get('/team-goal/:month', authenticate, async (req, res) => {
   try {
-    console.log('Fetching team goal for month:', req.params.month);
+    console.log('Fetching team goal (sum) for month:', req.params.month);
     
-    const [results] = await oldPool.query(
-      'SELECT * FROM monthly_goals WHERE month = ?',
+    // Calculate team goal as sum of individual goals
+    const [individualResults] = await oldPool.query(
+      'SELECT goal_count FROM monthly_goals WHERE month = ? AND advisor_name != "TEAM"',
       [req.params.month]
     );
     
-    console.log('Query results:', results);
-
-    if (!results || results.length === 0) {
-      return res.json({ goal_count: 0 });
-    }
-
-    res.json({ goal_count: results[0].goal_count });
+    console.log('Individual goals found:', individualResults);
+    
+    // Calculate team goal as sum of individual goals
+    const teamGoal = individualResults.reduce((sum, goal) => sum + (goal.goal_count || 0), 0);
+    
+    console.log('Calculated team goal:', teamGoal);
+    
+    res.json({ goal_count: teamGoal });
     
   } catch (error) {
     console.error('Error details:', {
@@ -57,16 +60,58 @@ router.get('/team/:month', authenticate, async (req, res) => {
   }
 });
 
+// Get team target (stored team goal)
+router.get('/team/:month', authenticate, async (req, res) => {
+  try {
+    console.log('Fetching team target for month:', req.params.month);
+    
+    // Get the stored team target
+    const [teamResults] = await oldPool.query(
+      'SELECT goal_count FROM monthly_goals WHERE month = ? AND advisor_name = "TEAM"',
+      [req.params.month]
+    );
+    
+    console.log('Team target found:', teamResults);
+    
+    if (teamResults.length > 0) {
+      // Return the stored team target
+      res.json({ goal_count: teamResults[0].goal_count });
+    } else {
+      // No team target set
+      res.json({ goal_count: 0 });
+    }
+    
+  } catch (error) {
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sql: error.sql
+    });
+    
+    res.status(500).json({ 
+      message: 'Error fetching team target',
+      details: error.sqlMessage || error.message
+    });
+  }
+});
+
 router.post('/team', authenticate, async (req, res) => {
   try {
     const { month, goal_count } = req.body;
     
+    console.log('Setting team goal:', { month, goal_count });
+    
+    // For team goals, we'll store it as a special "TEAM" advisor entry
+    // This allows us to have both individual goals and a team goal
     const [result] = await oldPool.query(
-      `INSERT INTO monthly_goals (month, goal_count) 
-       VALUES (?, ?)
+      `INSERT INTO monthly_goals (advisor_name, month, goal_count) 
+       VALUES (?, ?, ?)
        ON DUPLICATE KEY UPDATE goal_count = ?`,
-      [month, goal_count, goal_count]
+      ['TEAM', month, goal_count, goal_count]
     );
+    
+    console.log('Team goal saved successfully:', result);
     
     res.json({ 
       message: 'Team goal saved successfully',
