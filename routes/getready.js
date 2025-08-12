@@ -28,7 +28,8 @@ router.post('/send-email', authenticate, async (req, res) => {
       comments,
       customerName,
       salesperson,
-      submittedBy
+        submittedBy,
+        salespersonEmail
     } = req.body;
 
     // Validate required fields
@@ -53,15 +54,18 @@ router.post('/send-email', authenticate, async (req, res) => {
       comments: comments || '',
       customerName,
       salesperson: salesperson || req.auth.userName,
-      submittedBy: submittedBy || req.auth.userName
+      submittedBy: submittedBy || req.auth.userName,
+      salespersonEmail: salespersonEmail || ''
     };
 
     // Send email with sender in CC
-    await sendGetReadyEmail(getReadyData, [], req.auth.email);
+    const sendResult = await sendGetReadyEmail(getReadyData, [], req.auth.email);
 
     res.status(200).json({
       message: 'Get Ready email sent successfully',
-      data: getReadyData
+      data: getReadyData,
+      recipients: sendResult?.to || [],
+      cc: sendResult?.cc || null
     });
 
   } catch (error) {

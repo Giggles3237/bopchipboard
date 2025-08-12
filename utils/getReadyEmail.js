@@ -62,23 +62,37 @@ async function sendGetReadyEmail(data, recipients = [], senderEmail = null) {
     // Format email
     const { subject, body } = formatGetReadyEmail(data);
     
-    // Default recipients if none provided
+    // Default recipients
     const defaultRecipients = [
       "chris.lasko@pandwforeigncars.com",
       "get.ready@pandwforeigncars.com"
     ];
-    
-    // Add advisor's email if provided and not already in recipients
-    let toRecipients = recipients.length > 0 ? recipients : defaultRecipients;
-    
-    // If we have a salesperson/advisor email, add it to recipients
-    if (data.salesperson && data.salesperson.includes('@')) {
-      const advisorEmail = data.salesperson;
+
+    // Start with provided recipients or defaults
+    let toRecipients = recipients.length > 0 ? [...recipients] : [...defaultRecipients];
+
+    // Add salesperson/advisor name if it looks like an email
+    if (data.salesperson && typeof data.salesperson === 'string' && data.salesperson.includes('@')) {
+      const advisorEmail = data.salesperson.trim();
       if (!toRecipients.includes(advisorEmail)) {
         toRecipients.push(advisorEmail);
       }
     }
+
+    // Add explicit salespersonEmail field if provided
+    if (data.salespersonEmail && typeof data.salespersonEmail === 'string' && data.salespersonEmail.includes('@')) {
+      const salespersonEmail = data.salespersonEmail.trim();
+      if (!toRecipients.includes(salespersonEmail)) {
+        toRecipients.push(salespersonEmail);
+      }
+    }
     
+    // Log recipients for troubleshooting
+    console.log('[GetReadyEmail] To recipients:', toRecipients);
+    if (senderEmail) {
+      console.log('[GetReadyEmail] CC (sender):', senderEmail);
+    }
+
     // Email content
     const mailOptions = {
       from: `"Chipboard System" <${emailConfig.auth.user}>`,
@@ -103,7 +117,11 @@ async function sendGetReadyEmail(data, recipients = [], senderEmail = null) {
     // Send email
     const info = await transporter.sendMail(mailOptions);
     console.log("✅ Get Ready email sent successfully:", info.messageId);
-    return info;
+    return {
+      messageId: info.messageId,
+      to: toRecipients,
+      cc: senderEmail || null
+    };
     
   } catch (error) {
     console.error("❌ Error sending Get Ready email:", error.message);
