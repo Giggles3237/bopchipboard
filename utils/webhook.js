@@ -1,7 +1,10 @@
 const axios = require('axios');
 
-// Use environment variable for webhook URL
-const WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL || 'https://prod-71.westus.logic.azure.com:443/workflows/b76a5e4ad5ea49978990e86679806fc4/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=TXM1g4mf6lpViRgQ0JrYAa59-TAvg-UjC24ZZECDFzI';
+// Webhook URLs for Microsoft Teams
+// Sales notifications
+const SALES_WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL || 'https://prod-71.westus.logic.azure.com:443/workflows/b76a5e4ad5ea49978990e86679806fc4/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=TXM1g4mf6lpViRgQ0JrYAa59-TAvg-UjC24ZZECDFzI';
+// Get Ready notifications
+const GETREADY_WEBHOOK_URL = process.env.TEAMS_GETREADY_WEBHOOK_URL;
 
 /**
  * Send webhook notification for sales operations
@@ -12,7 +15,7 @@ const WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL || 'https://prod-71.westus.log
 async function sendSalesWebhook(action, saleData, userData = {}) {
   try {
     // Check if webhook URL is configured
-    if (!WEBHOOK_URL) {
+    if (!SALES_WEBHOOK_URL) {
       console.warn('TEAMS_WEBHOOK_URL environment variable not set, skipping webhook');
       return false;
     }
@@ -106,7 +109,7 @@ async function sendSalesWebhook(action, saleData, userData = {}) {
 
     console.log(`Sending webhook for ${action} action:`, payload);
 
-    const response = await axios.post(WEBHOOK_URL, payload, {
+    const response = await axios.post(SALES_WEBHOOK_URL, payload, {
       headers: {
         'Content-Type': 'application/json'
       },
@@ -141,12 +144,115 @@ async function sendSaleAddedWebhook(saleData, userData) {
  * @param {Object} saleData - The sale data that was deleted
  * @param {Object} userData - User information who deleted the sale
  */
-async function sendSaleDeletedWebhook(saleData, userData) {
-  return sendSalesWebhook('delete', saleData, userData);
+  async function sendSaleDeletedWebhook(saleData, userData) {
+    return sendSalesWebhook('delete', saleData, userData);
+  }
+
+/**
+ * Send webhook notification when a Get Ready is submitted
+ * @param {Object} getReadyData - Data describing the Get Ready request
+ */
+async function sendGetReadyWebhook(getReadyData = {}) {
+  try {
+    if (!GETREADY_WEBHOOK_URL) {
+      console.warn('TEAMS_GETREADY_WEBHOOK_URL environment variable not set, skipping Get Ready webhook');
+      return false;
+    }
+
+    const body = [
+      {
+        type: 'TextBlock',
+        size: 'Large',
+        weight: 'Bolder',
+        text: 'Get Ready Submitted - ChipBoard Bot'
+      },
+      {
+        type: 'TextBlock',
+        text: `**Stock Number:** ${getReadyData.getReadyId}`,
+        wrap: true
+      },
+      {
+        type: 'TextBlock',
+        text: `**Due By:** ${getReadyData.dueBy}`,
+        wrap: true
+      },
+      {
+        type: 'TextBlock',
+        text: `**Vehicle:** ${getReadyData.vehicle}`,
+        wrap: true
+      },
+      {
+        type: 'TextBlock',
+        text: `**Location:** ${getReadyData.location}`,
+        wrap: true
+      },
+      {
+        type: 'TextBlock',
+        text: `**Salesperson:** ${getReadyData.salesperson}`,
+        wrap: true
+      },
+      {
+        type: 'TextBlock',
+        text: `**Customer:** ${getReadyData.customerName}`,
+        wrap: true
+      }
+    ];
+
+    if (getReadyData.itemsNeeded && getReadyData.itemsNeeded.length) {
+      body.push({
+        type: 'TextBlock',
+        text: `**Items Needed:** ${Array.isArray(getReadyData.itemsNeeded) ? getReadyData.itemsNeeded.join(', ') : getReadyData.itemsNeeded}`,
+        wrap: true
+      });
+    }
+
+    if (getReadyData.comments) {
+      body.push({
+        type: 'TextBlock',
+        text: `**Comments:** ${getReadyData.comments}`,
+        wrap: true
+      });
+    }
+
+    const payload = {
+      attachments: [
+        {
+          contentType: 'application/vnd.microsoft.card.adaptive',
+          content: {
+            type: 'AdaptiveCard',
+            version: '1.0',
+            body
+          }
+        }
+      ],
+      action: 'getready',
+      timestamp: new Date().toISOString(),
+      getReady: getReadyData,
+      source: 'bopchipboard'
+    };
+
+    console.log('Sending Get Ready webhook:', payload);
+
+    const response = await axios.post(GETREADY_WEBHOOK_URL, payload, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 10000
+    });
+
+    console.log('Get Ready webhook sent successfully. Status:', response.status);
+    return true;
+  } catch (error) {
+    console.error('Failed to send Get Ready webhook:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    return false;
+  }
 }
 
 module.exports = {
   sendSalesWebhook,
   sendSaleAddedWebhook,
-  sendSaleDeletedWebhook
-}; 
+  sendSaleDeletedWebhook,
+  sendGetReadyWebhook
+};

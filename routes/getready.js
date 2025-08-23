@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { sendGetReadyEmail } = require('../utils/getReadyEmail');
+const { sendGetReadyWebhook } = require('../utils/webhook');
 
 // Test route without authentication
 router.get('/test', (req, res) => {
@@ -60,6 +61,9 @@ router.post('/send-email', authenticate, async (req, res) => {
 
     // Send email with sender in CC
     const sendResult = await sendGetReadyEmail(getReadyData, [], req.auth.email);
+
+    // Notify Teams channel
+    await sendGetReadyWebhook(getReadyData);
 
     res.status(200).json({
       message: 'Get Ready email sent successfully',
