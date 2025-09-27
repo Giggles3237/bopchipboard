@@ -1,17 +1,79 @@
 const nodemailer = require("nodemailer");
 
-// Email configuration - Gmail with App Password
-const emailConfig = {
-  service: process.env.EMAIL_SERVICE || "gmail",
-  auth: {
-    user: process.env.EMAIL_USER || "chipboard.bot@gmail.com",
-    pass: process.env.EMAIL_PASSWORD || "wcpg rmtk szwp rqmx" // Gmail App Password
-  },
-  // Add these settings to improve deliverability
-  tls: {
-    rejectUnauthorized: false
+function buildEmailConfig() {
+  const {
+    EMAIL_HOST,
+    EMAIL_PORT,
+    EMAIL_SECURE,
+    EMAIL_SERVICE,
+    EMAIL_USER,
+    EMAIL_PASSWORD,
+    EMAIL_REQUIRE_TLS,
+    EMAIL_TLS_REJECT_UNAUTHORIZED
+  } = process.env;
+
+  const parsedPort = EMAIL_PORT ? parseInt(EMAIL_PORT, 10) : undefined;
+  const parsedSecure = typeof EMAIL_SECURE === 'string' ? EMAIL_SECURE === 'true' : undefined;
+  const rejectUnauthorized = EMAIL_TLS_REJECT_UNAUTHORIZED
+    ? EMAIL_TLS_REJECT_UNAUTHORIZED === 'true'
+    : false;
+
+  const authUser = EMAIL_USER || "chipboard.bot@gmail.com";
+  const authPass = EMAIL_PASSWORD || "wcpg rmtk szwp rqmx";
+
+  if (!authUser || !authPass) {
+    throw new Error('Email credentials are not configured. Please set EMAIL_USER and EMAIL_PASSWORD environment variables.');
   }
-};
+
+  // Allow either explicit host configuration or nodemailer's service lookup
+  if (EMAIL_HOST) {
+    return {
+      host: EMAIL_HOST,
+      port: parsedPort || 587,
+      secure: typeof parsedSecure === 'boolean' ? parsedSecure : (parsedPort === 465),
+      requireTLS: EMAIL_REQUIRE_TLS ? EMAIL_REQUIRE_TLS === 'true' : true,
+      auth: {
+        user: authUser,
+        pass: authPass
+      },
+      tls: {
+        rejectUnauthorized
+      }
+    };
+  }
+
+  const config = {
+    service: EMAIL_SERVICE || "gmail",
+    auth: {
+      user: authUser,
+      pass: authPass
+    },
+    tls: {
+      rejectUnauthorized
+    }
+  };
+
+  if (parsedPort) {
+    config.port = parsedPort;
+  }
+
+  if (typeof parsedSecure === 'boolean') {
+    config.secure = parsedSecure;
+  }
+
+  return config;
+}
+
+let emailConfig;
+
+try {
+  emailConfig = buildEmailConfig();
+} catch (error) {
+  console.error('[GetReadyEmail] Email configuration error:', error.message);
+  emailConfig = null;
+}
+
+const fromAddress = process.env.EMAIL_FROM || (emailConfig?.auth?.user ? `"Chipboard System" <${emailConfig.auth.user}>` : null);
 
 function formatGetReadyEmail(data) {
   const {
@@ -56,9 +118,20 @@ Submitted By: ${submittedBy} @ ${new Date().toLocaleString()}
 
 async function sendGetReadyEmail(data, recipients = [], senderEmail = null) {
   try {
+    if (!emailConfig) {
+      throw new Error('Email transporter is not configured. Check server email environment variables.');
+    }
+
     // Create transporter
     const transporter = nodemailer.createTransport(emailConfig);
-    
+
+    // Verify transporter configuration to surface connection issues early
+    try {
+      await transporter.verify();
+    } catch (verifyError) {
+      console.warn('[GetReadyEmail] Transport verify failed:', verifyError.message);
+    }
+
     // Format email
     const { subject, body } = formatGetReadyEmail(data);
     
@@ -95,7 +168,7 @@ async function sendGetReadyEmail(data, recipients = [], senderEmail = null) {
 
     // Email content
     const mailOptions = {
-      from: `"Chipboard System" <${emailConfig.auth.user}>`,
+      from: fromAddress || emailConfig.auth.user,
       to: toRecipients.join(', '),
       subject: subject,
       text: body,
