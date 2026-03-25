@@ -45,7 +45,12 @@ async function sendSalesWebhook(action, saleData, userData = {}) {
     }
 
     // Determine title based on action
-    const title = action === 'add' ? 'Vehicle Sold - ChipBoard Bot' : 'Sale Deleted - ChipBoard Bot';
+    const isWholesale = saleData.type === 'Wholesale';
+    const title = action === 'delete'
+      ? 'Sale Deleted - ChipBoard Bot'
+      : isWholesale
+        ? `Sent to ${saleData.clientName} Auction - ChipBoard Bot`
+        : 'Vehicle Sold - ChipBoard Bot';
 
     // Format the payload to match what your Power Automate flow expects
     const payload = {
