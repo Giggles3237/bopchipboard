@@ -27,6 +27,7 @@ const goalsRoutes = require('./routes/goals');
 const unifiedVehiclesRoutes = require('./routes/unifiedVehicles');
 const keysRouter = require('./routes/keys');
 const getreadyRoutes = require('./routes/getready');
+const loanerRoutes = require('./routes/loaners');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -38,6 +39,7 @@ app.use('/api/goals', goalsRoutes);
 app.use('/api/unified-vehicles', unifiedVehiclesRoutes);
 app.use('/api/keys', keysRouter);
 app.use('/api/getready', getreadyRoutes);
+app.use('/api/loaners', loanerRoutes);
 
 // Test route directly in server.js
 app.post('/api/test-email', (req, res) => {
@@ -56,6 +58,7 @@ console.log('- /api/goals');
 console.log('- /api/unified-vehicles');
 console.log('- /api/keys');
 console.log('- /api/getready');
+console.log('- /api/loaners');
 
 // Error handling middleware
 app.use((err, req, res, next) => {
