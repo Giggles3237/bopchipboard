@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const jwt = require('jsonwebtoken');
 const { authenticate } = require('../middleware/auth');
-const { sendGetReadyEmail } = require('../utils/getReadyEmail');
+const { sendGetReadyEmail, sendGetReadyEscalationEmail, escapeHtml } = require('../utils/getReadyEmail');
 const { sendGetReadyWebhook } = require('../utils/webhook');
+
+router.use(express.urlencoded({ extended: false }));
 
 function buildDueDate(getReadyDate, promiseTime, dueBy) {
   if (getReadyDate) {
@@ -56,6 +59,55 @@ async function submitToGetReadySystem(payload) {
       message: error.response?.data?.message || error.message
     };
   }
+}
+
+function buildPublicApiBaseUrl(req) {
+  if (process.env.BACKEND_PUBLIC_URL) {
+    return process.env.BACKEND_PUBLIC_URL.replace(/\/$/, '');
+  }
+
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+
+  return `${protocol}://${host}`;
+}
+
+function buildEscalationToken(getReadyData, senderEmail) {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is required to create Get Ready escalation links.');
+  }
+
+  return jwt.sign(
+    {
+      type: 'getready_escalation',
+      getReadyData,
+      senderEmail
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.GET_READY_ESCALATION_EXPIRES_IN || '30d' }
+  );
+}
+
+function verifyEscalationToken(token) {
+  if (!token) {
+    const error = new Error('Missing escalation token.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is required to verify Get Ready escalation links.');
+  }
+
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+  if (decoded.type !== 'getready_escalation' || !decoded.getReadyData) {
+    const error = new Error('Invalid escalation token.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return decoded;
 }
 
 // Test route without authentication
@@ -119,6 +171,9 @@ router.post('/send-email', authenticate, async (req, res) => {
       salespersonEmail: salespersonEmail || ''
     };
 
+    const escalationToken = buildEscalationToken(getReadyData, req.auth.email);
+    getReadyData.escalationUrl = `${buildPublicApiBaseUrl(req)}/api/getready/escalate?token=${encodeURIComponent(escalationToken)}`;
+
     // Send email with sender in CC
     const sendResult = await sendGetReadyEmail(getReadyData, [], req.auth.email);
 
@@ -157,6 +212,96 @@ router.post('/send-email', authenticate, async (req, res) => {
       message: 'Error sending Get Ready email',
       error: error.message
     });
+  }
+});
+
+router.get('/escalate', async (req, res) => {
+  console.log('Get Ready escalation confirmation opened');
+
+  try {
+    const { token } = req.query;
+    const decoded = verifyEscalationToken(token);
+    const getReadyData = decoded.getReadyData;
+    const escapedStockNumber = escapeHtml(getReadyData.getReadyId || 'this stock number');
+    const escapedToken = escapeHtml(token);
+
+    res.status(200).send(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>Escalate Get Ready</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <style>
+            body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 32px; background: #f9fafb; color: #111827; }
+            main { max-width: 680px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; padding: 28px; }
+            h1 { color: #991b1b; margin: 0 0 12px; }
+            p { font-size: 16px; line-height: 1.45; }
+            button { background: #b91c1c; border: 0; color: #ffffff; cursor: pointer; font-size: 16px; font-weight: 800; padding: 13px 18px; text-transform: uppercase; }
+          </style>
+        </head>
+        <body>
+          <main>
+            <h1>Escalate ${escapedStockNumber}?</h1>
+            <p>This will send an urgent escalation email to the same recipients from the original Get Ready email.</p>
+            <form method="post" action="/api/getready/escalate">
+              <input type="hidden" name="token" value="${escapedToken}" />
+              <button type="submit">Send Urgent Escalation Email</button>
+            </form>
+          </main>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('Error opening Get Ready escalation confirmation:', error);
+    res.status(error.statusCode || 500).send('This Get Ready could not be escalated. The link may have expired or is invalid.');
+  }
+});
+
+router.post('/escalate', async (req, res) => {
+  console.log('Get Ready escalation send request received');
+
+  try {
+    const token = req.body.token || req.query.token;
+    const decoded = verifyEscalationToken(token);
+    const getReadyData = {
+      ...decoded.getReadyData,
+      escalatedBy: 'Escalation button'
+    };
+
+    const sendResult = await sendGetReadyEscalationEmail(
+      getReadyData,
+      [],
+      decoded.senderEmail || null
+    );
+
+    const escapedStockNumber = escapeHtml(getReadyData.getReadyId || 'this stock number');
+    const escapedRecipients = escapeHtml((sendResult.to || []).join(', '));
+
+    res.status(200).send(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>Get Ready Escalated</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <style>
+            body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 32px; background: #f9fafb; color: #111827; }
+            main { max-width: 680px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; padding: 28px; }
+            h1 { color: #991b1b; margin: 0 0 12px; }
+            p { font-size: 16px; line-height: 1.45; }
+          </style>
+        </head>
+        <body>
+          <main>
+            <h1>Get Ready Escalated</h1>
+            <p>The urgent escalation email for ${escapedStockNumber} has been sent.</p>
+            <p>Sent to: ${escapedRecipients}</p>
+          </main>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('Error escalating Get Ready:', error);
+    res.status(500).send('This Get Ready could not be escalated. The link may have expired or the email system may be unavailable.');
   }
 });
 

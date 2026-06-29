@@ -75,6 +75,52 @@ try {
 
 const fromAddress = process.env.EMAIL_FROM || (emailConfig?.auth?.user ? `"Chipboard System" <${emailConfig.auth.user}>` : null);
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
+function buildGetReadyRecipients(data, recipients = []) {
+  const defaultRecipients = [
+    "chris.lasko@pandwforeigncars.com",
+    "get.ready@pandwforeigncars.com"
+  ];
+
+  const toRecipients = recipients.length > 0 ? [...recipients] : [...defaultRecipients];
+  const addRecipient = (email) => {
+    if (typeof email !== 'string' || !email.includes('@')) {
+      return;
+    }
+
+    const trimmedEmail = email.trim();
+    const alreadyIncluded = toRecipients.some((recipient) => (
+      recipient.toLowerCase() === trimmedEmail.toLowerCase()
+    ));
+
+    if (!alreadyIncluded) {
+      toRecipients.push(trimmedEmail);
+    }
+  };
+
+  addRecipient(data.salesperson);
+  addRecipient(data.salespersonEmail);
+
+  return toRecipients;
+}
+
+function formatItemsNeeded(itemsNeeded) {
+  if (!Array.isArray(itemsNeeded) || itemsNeeded.length === 0) {
+    return 'None listed';
+  }
+
+  return itemsNeeded.join(', ');
+}
+
 function formatGetReadyEmail(data) {
   const {
     getReadyId,
@@ -88,10 +134,28 @@ function formatGetReadyEmail(data) {
     comments,
     customerName,
     salesperson,
-    submittedBy
+    submittedBy,
+    escalationUrl
   } = data;
 
   const emailSubject = `${getReadyId}*SOLD UNIT* GET READY - REPLY ALL FOR STATUS UPDATES`;
+  const submittedAt = new Date().toLocaleString();
+  const htmlFields = {
+    getReadyId: escapeHtml(getReadyId),
+    dueBy: escapeHtml(dueBy),
+    chassis: escapeHtml(chassis),
+    vehicle: escapeHtml(vehicle),
+    location: escapeHtml(location),
+    miles: escapeHtml(miles || ''),
+    itemsNeeded: escapeHtml(formatItemsNeeded(itemsNeeded)),
+    additionalAction: escapeHtml(additionalAction || 'Check for Open Campaigns'),
+    comments: escapeHtml(comments || ''),
+    customerName: escapeHtml(customerName),
+    salesperson: escapeHtml(salesperson),
+    submittedBy: escapeHtml(submittedBy),
+    submittedAt: escapeHtml(submittedAt),
+    escalationUrl: escapeHtml(escalationUrl || '')
+  };
   
   const emailBody = `
 This is a Get Ready for a sold unit. Please Reply All to this email with updates to the vehicles status.
@@ -107,13 +171,159 @@ Additional Action: ${additionalAction || 'Check for Open Campaigns'}
 Comments: ${comments}
 Customer Name: ${customerName}
 Salesperson: ${salesperson}
-Submitted By: ${submittedBy} @ ${new Date().toLocaleString()}
+Submitted By: ${submittedBy} @ ${submittedAt}
+${escalationUrl ? `\nEscalate this Get Ready: ${escalationUrl}` : ''}
   `.trim();
+
+  const escalationButtonHtml = escalationUrl ? `
+    <tr>
+      <td style="padding: 22px 0 8px;">
+        <a href="${htmlFields.escalationUrl}" style="display: inline-block; background: #b91c1c; color: #ffffff; font-weight: 800; text-decoration: none; padding: 14px 22px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.4px;">
+          Escalate This Get Ready
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td style="font-size: 13px; color: #7f1d1d; padding-bottom: 12px;">
+        Use this if the email thread is getting buried or the unit needs urgent attention.
+      </td>
+    </tr>
+  ` : '';
+
+  const emailHtml = `
+    <div style="font-family: Arial, Helvetica, sans-serif; color: #111827; line-height: 1.45;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 720px; border-collapse: collapse;">
+        <tr>
+          <td style="background: #1f2937; color: #ffffff; padding: 18px 20px; font-size: 20px; font-weight: 800;">
+            Sold Unit Get Ready
+          </td>
+        </tr>
+        <tr>
+          <td style="border: 1px solid #d1d5db; border-top: 0; padding: 18px 20px;">
+            <p style="margin: 0 0 16px;">This is a Get Ready for a sold unit. Please Reply All to this email with updates to the vehicle's status.</p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+              <tr><td style="padding: 7px 0; font-weight: 700; width: 160px;">Stock Number:</td><td style="padding: 7px 0;">${htmlFields.getReadyId}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Due By:</td><td style="padding: 7px 0;">${htmlFields.dueBy}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Chassis:</td><td style="padding: 7px 0;">${htmlFields.chassis}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Vehicle:</td><td style="padding: 7px 0;">${htmlFields.vehicle}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Location:</td><td style="padding: 7px 0;">${htmlFields.location}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Miles:</td><td style="padding: 7px 0;">${htmlFields.miles}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Items Needed:</td><td style="padding: 7px 0;">${htmlFields.itemsNeeded}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Additional Action:</td><td style="padding: 7px 0;">${htmlFields.additionalAction}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Comments:</td><td style="padding: 7px 0;">${htmlFields.comments}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Customer Name:</td><td style="padding: 7px 0;">${htmlFields.customerName}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Salesperson:</td><td style="padding: 7px 0;">${htmlFields.salesperson}</td></tr>
+              <tr><td style="padding: 7px 0; font-weight: 700;">Submitted By:</td><td style="padding: 7px 0;">${htmlFields.submittedBy} @ ${htmlFields.submittedAt}</td></tr>
+            </table>
+            <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+              ${escalationButtonHtml}
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
 
   return {
     subject: emailSubject,
-    body: emailBody
+    body: emailBody,
+    html: emailHtml
   };
+}
+
+function formatEscalationEmail(data) {
+  const {
+    getReadyId,
+    dueBy,
+    chassis,
+    vehicle,
+    location,
+    miles,
+    itemsNeeded,
+    additionalAction,
+    comments,
+    customerName,
+    salesperson,
+    submittedBy,
+    escalatedBy
+  } = data;
+
+  const stockNumber = getReadyId || 'Unknown stock';
+  const subject = `Urgent, ${stockNumber} has been escalated.`;
+  const sentAt = new Date().toLocaleString();
+  const htmlFields = {
+    stockNumber: escapeHtml(stockNumber),
+    dueBy: escapeHtml(dueBy),
+    chassis: escapeHtml(chassis),
+    vehicle: escapeHtml(vehicle),
+    location: escapeHtml(location),
+    miles: escapeHtml(miles || ''),
+    itemsNeeded: escapeHtml(formatItemsNeeded(itemsNeeded)),
+    additionalAction: escapeHtml(additionalAction || 'Check for Open Campaigns'),
+    comments: escapeHtml(comments || ''),
+    customerName: escapeHtml(customerName),
+    salesperson: escapeHtml(salesperson),
+    submittedBy: escapeHtml(submittedBy),
+    sentAt: escapeHtml(sentAt)
+  };
+  const body = `
+URGENT GET READY ESCALATION
+
+${stockNumber} has been escalated and needs immediate attention.
+
+Stock Number: ${stockNumber}
+Due By: ${dueBy}
+Vehicle: ${vehicle}
+Customer Name: ${customerName}
+Location: ${location}
+Chassis: ${chassis}
+Miles: ${miles || ''}
+Items Needed: ${formatItemsNeeded(itemsNeeded)}
+Additional Action: ${additionalAction || 'Check for Open Campaigns'}
+Comments: ${comments || ''}
+Salesperson: ${salesperson}
+Original Submitted By: ${submittedBy}
+Escalated By: ${escalatedBy || 'Escalation button'}
+Escalated At: ${sentAt}
+  `.trim();
+
+  const html = `
+    <div style="font-family: Arial, Helvetica, sans-serif; color: #111827; line-height: 1.45;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 760px; border-collapse: collapse; border: 4px solid #b91c1c;">
+        <tr>
+          <td style="background: #b91c1c; color: #ffffff; padding: 20px 24px; font-size: 26px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px;">
+            Urgent Get Ready Escalation
+          </td>
+        </tr>
+        <tr>
+          <td style="background: #fee2e2; color: #7f1d1d; padding: 18px 24px; font-size: 22px; font-weight: 900;">
+            ${htmlFields.stockNumber} has been escalated and needs immediate attention.
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 20px 24px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+              <tr><td style="padding: 9px 0; font-weight: 800; width: 170px; border-bottom: 1px solid #e5e7eb;">Stock Number:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.stockNumber}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Due By:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.dueBy}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Vehicle:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.vehicle}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Customer:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.customerName}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Location:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.location}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Chassis:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.chassis}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Miles:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.miles}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Items Needed:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.itemsNeeded}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Additional Action:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.additionalAction}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Comments:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.comments}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Salesperson:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.salesperson}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Submitted By:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.submittedBy}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800;">Escalated At:</td><td style="padding: 9px 0;">${htmlFields.sentAt}</td></tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+
+  return { subject, body, html };
 }
 
 async function sendGetReadyEmail(data, recipients = [], senderEmail = null) {
@@ -133,32 +343,8 @@ async function sendGetReadyEmail(data, recipients = [], senderEmail = null) {
     }
 
     // Format email
-    const { subject, body } = formatGetReadyEmail(data);
-    
-    // Default recipients
-    const defaultRecipients = [
-      "chris.lasko@pandwforeigncars.com",
-      "get.ready@pandwforeigncars.com"
-    ];
-
-    // Start with provided recipients or defaults
-    let toRecipients = recipients.length > 0 ? [...recipients] : [...defaultRecipients];
-
-    // Add salesperson/advisor name if it looks like an email
-    if (data.salesperson && typeof data.salesperson === 'string' && data.salesperson.includes('@')) {
-      const advisorEmail = data.salesperson.trim();
-      if (!toRecipients.includes(advisorEmail)) {
-        toRecipients.push(advisorEmail);
-      }
-    }
-
-    // Add explicit salespersonEmail field if provided
-    if (data.salespersonEmail && typeof data.salespersonEmail === 'string' && data.salespersonEmail.includes('@')) {
-      const salespersonEmail = data.salespersonEmail.trim();
-      if (!toRecipients.includes(salespersonEmail)) {
-        toRecipients.push(salespersonEmail);
-      }
-    }
+    const { subject, body, html } = formatGetReadyEmail(data);
+    const toRecipients = buildGetReadyRecipients(data, recipients);
     
     // Log recipients for troubleshooting
     console.log('[GetReadyEmail] To recipients:', toRecipients);
@@ -172,7 +358,7 @@ async function sendGetReadyEmail(data, recipients = [], senderEmail = null) {
       to: toRecipients.join(', '),
       subject: subject,
       text: body,
-      html: body.replace(/\n/g, '<br>'),
+      html,
       // Add headers to improve deliverability
       headers: {
         'X-Priority': '1',
@@ -198,6 +384,59 @@ async function sendGetReadyEmail(data, recipients = [], senderEmail = null) {
     
   } catch (error) {
     console.error("❌ Error sending Get Ready email:", error.message);
+    throw error;
+  }
+}
+
+async function sendGetReadyEscalationEmail(data, recipients = [], senderEmail = null) {
+  try {
+    if (!emailConfig) {
+      throw new Error('Email transporter is not configured. Check server email environment variables.');
+    }
+
+    const transporter = nodemailer.createTransport(emailConfig);
+
+    try {
+      await transporter.verify();
+    } catch (verifyError) {
+      console.warn('[GetReadyEmail] Transport verify failed:', verifyError.message);
+    }
+
+    const { subject, body, html } = formatEscalationEmail(data);
+    const toRecipients = buildGetReadyRecipients(data, recipients);
+
+    console.log('[GetReadyEmail] Escalation to recipients:', toRecipients);
+    if (senderEmail) {
+      console.log('[GetReadyEmail] Escalation CC (sender):', senderEmail);
+    }
+
+    const mailOptions = {
+      from: fromAddress || emailConfig.auth.user,
+      to: toRecipients.join(', '),
+      subject,
+      text: body,
+      html,
+      headers: {
+        'X-Priority': '1',
+        'X-MSMail-Priority': 'High',
+        'Importance': 'high',
+        'X-Mailer': 'Chipboard System'
+      }
+    };
+
+    if (senderEmail) {
+      mailOptions.cc = senderEmail;
+    }
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log("Get Ready escalation email sent successfully:", info.messageId);
+    return {
+      messageId: info.messageId,
+      to: toRecipients,
+      cc: senderEmail || null
+    };
+  } catch (error) {
+    console.error("Error sending Get Ready escalation email:", error.message);
     throw error;
   }
 }
@@ -284,8 +523,12 @@ async function addRowToExcelViaGetReadyEmail(values, recipients = []) {
 
 module.exports = { 
   sendGetReadyEmail,
+  sendGetReadyEscalationEmail,
   addRowToExcelViaGetReadyEmail,
   convertToGetReadyFormat,
   testGetReadyEmail,
-  formatGetReadyEmail
+  formatGetReadyEmail,
+  formatEscalationEmail,
+  buildGetReadyRecipients,
+  escapeHtml
 }; 
