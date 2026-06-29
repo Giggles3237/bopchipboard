@@ -245,7 +245,8 @@ function formatEscalationEmail(data) {
     customerName,
     salesperson,
     submittedBy,
-    escalatedBy
+    escalatedBy,
+    escalationComments
   } = data;
 
   const stockNumber = getReadyId || 'Unknown stock';
@@ -264,6 +265,7 @@ function formatEscalationEmail(data) {
     customerName: escapeHtml(customerName),
     salesperson: escapeHtml(salesperson),
     submittedBy: escapeHtml(submittedBy),
+    escalationComments: escapeHtml(escalationComments || 'No additional escalation comments provided.'),
     sentAt: escapeHtml(sentAt)
   };
   const body = `
@@ -281,6 +283,7 @@ Miles: ${miles || ''}
 Items Needed: ${formatItemsNeeded(itemsNeeded)}
 Additional Action: ${additionalAction || 'Check for Open Campaigns'}
 Comments: ${comments || ''}
+Escalation Comments: ${escalationComments || 'No additional escalation comments provided.'}
 Salesperson: ${salesperson}
 Original Submitted By: ${submittedBy}
 Escalated By: ${escalatedBy || 'Escalation button'}
@@ -313,6 +316,7 @@ Escalated At: ${sentAt}
               <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Items Needed:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.itemsNeeded}</td></tr>
               <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Additional Action:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.additionalAction}</td></tr>
               <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Comments:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.comments}</td></tr>
+              <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Escalation Comments:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.escalationComments}</td></tr>
               <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Salesperson:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.salesperson}</td></tr>
               <tr><td style="padding: 9px 0; font-weight: 800; border-bottom: 1px solid #e5e7eb;">Submitted By:</td><td style="padding: 9px 0; border-bottom: 1px solid #e5e7eb;">${htmlFields.submittedBy}</td></tr>
               <tr><td style="padding: 9px 0; font-weight: 800;">Escalated At:</td><td style="padding: 9px 0;">${htmlFields.sentAt}</td></tr>

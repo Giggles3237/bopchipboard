@@ -236,6 +236,8 @@ router.get('/escalate', async (req, res) => {
             main { max-width: 680px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; padding: 28px; }
             h1 { color: #991b1b; margin: 0 0 12px; }
             p { font-size: 16px; line-height: 1.45; }
+            label { display: block; font-weight: 800; margin: 20px 0 8px; }
+            textarea { box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; min-height: 120px; padding: 12px; resize: vertical; width: 100%; }
             button { background: #b91c1c; border: 0; color: #ffffff; cursor: pointer; font-size: 16px; font-weight: 800; padding: 13px 18px; text-transform: uppercase; }
           </style>
         </head>
@@ -245,6 +247,8 @@ router.get('/escalate', async (req, res) => {
             <p>This will send an urgent escalation email to the same recipients from the original Get Ready email.</p>
             <form method="post" action="/api/getready/escalate">
               <input type="hidden" name="token" value="${escapedToken}" />
+              <label for="escalationComments">Comments to include in the urgent email</label>
+              <textarea id="escalationComments" name="escalationComments" placeholder="Add what needs attention, who is waiting, or what has been missed."></textarea>
               <button type="submit">Send Urgent Escalation Email</button>
             </form>
           </main>
@@ -262,10 +266,14 @@ router.post('/escalate', async (req, res) => {
 
   try {
     const token = req.body.token || req.query.token;
+    const escalationComments = typeof req.body.escalationComments === 'string'
+      ? req.body.escalationComments.trim()
+      : '';
     const decoded = verifyEscalationToken(token);
     const getReadyData = {
       ...decoded.getReadyData,
-      escalatedBy: 'Escalation button'
+      escalatedBy: 'Escalation button',
+      escalationComments
     };
 
     const sendResult = await sendGetReadyEscalationEmail(
