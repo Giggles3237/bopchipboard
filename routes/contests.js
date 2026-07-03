@@ -232,6 +232,7 @@ const loadContestBundle = async (contestId, req) => {
     return {
       saleId: sale.id,
       stockNumber: sale.stockNumber,
+      clientName: sale.clientName,
       advisor: sale.advisor,
       vehicle: [sale.year, sale.make, sale.model].filter(Boolean).join(' '),
       type: sale.type,
