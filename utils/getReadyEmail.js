@@ -18,8 +18,8 @@ function buildEmailConfig() {
     ? EMAIL_TLS_REJECT_UNAUTHORIZED === 'true'
     : false;
 
-  const authUser = EMAIL_USER || "chipboard.bot@gmail.com";
-  const authPass = EMAIL_PASSWORD || "wcpg rmtk szwp rqmx";
+  const authUser = EMAIL_USER;
+  const authPass = EMAIL_PASSWORD;
 
   if (!authUser || !authPass) {
     throw new Error('Email credentials are not configured. Please set EMAIL_USER and EMAIL_PASSWORD environment variables.');
