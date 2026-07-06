@@ -29,6 +29,42 @@ function buildDueDate(getReadyDate, promiseTime, dueBy) {
   return null;
 }
 
+function formatPromiseTime(promiseTime) {
+  const rawTime = String(promiseTime || '').trim();
+  const match = rawTime.match(/^(\d{1,2}):(\d{2})$/);
+
+  if (!match) {
+    return rawTime || '2:00 PM';
+  }
+
+  const hours = Number(match[1]);
+  const minutes = match[2];
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+
+  return `${displayHours}:${minutes} ${period}`;
+}
+
+function formatDisplayGetReadyDueBy(getReadyDate, promiseTime, dueBy) {
+  if (!getReadyDate) {
+    return dueBy;
+  }
+
+  const [year, month, day] = String(getReadyDate).split('T')[0].split('-').map(Number);
+
+  if (!year || !month || !day) {
+    return dueBy;
+  }
+
+  const formattedDate = new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  }).format(new Date(year, month - 1, day));
+
+  return `${formattedDate} at ${formatPromiseTime(promiseTime)}`;
+}
+
 async function submitToGetReadySystem(payload) {
   const url = process.env.GET_READY_API_URL || 'https://getready-ww41.onrender.com/api/integrations/bopchipboard/get-ready';
   const integrationKey = process.env.GET_READY_INTEGRATION_KEY || process.env.BOPCHIPBOARD_API_KEY;
@@ -110,6 +146,15 @@ function verifyEscalationToken(token) {
   return decoded;
 }
 
+function attachEscalationUrl(getReadyData, req, senderEmail) {
+  try {
+    const escalationToken = buildEscalationToken(getReadyData, senderEmail);
+    getReadyData.escalationUrl = `${buildPublicApiBaseUrl(req)}/api/getready/escalate?token=${encodeURIComponent(escalationToken)}`;
+  } catch (error) {
+    console.warn('Get Ready escalation link was not added:', error.message);
+  }
+}
+
 // Test route without authentication
 router.get('/test', (req, res) => {
   console.log('✅ GET /api/getready/test route hit');
@@ -144,6 +189,8 @@ router.post('/send-email', authenticate, async (req, res) => {
       getReadyDate,
       promiseTime
     } = req.body;
+    const authenticatedName = req.auth.name || req.auth.userName || '';
+    const senderEmail = req.auth.email || salespersonEmail || '';
 
     // Validate required fields
     if (!getReadyId || !dueBy || !vehicle || !customerName) {
@@ -157,7 +204,7 @@ router.post('/send-email', authenticate, async (req, res) => {
     // Prepare data for email
     const getReadyData = {
       getReadyId,
-      dueBy,
+      dueBy: formatDisplayGetReadyDueBy(getReadyDate, promiseTime, dueBy),
       chassis: chassis || '',
       vehicle,
       location: location || 'DETAIL',
@@ -166,16 +213,15 @@ router.post('/send-email', authenticate, async (req, res) => {
       additionalAction: additionalAction || 'Check for Open Campaigns',
       comments: comments || '',
       customerName,
-      salesperson: salesperson || req.auth.userName,
-      submittedBy: submittedBy || req.auth.userName,
+      salesperson: salesperson || authenticatedName,
+      submittedBy: submittedBy || authenticatedName,
       salespersonEmail: salespersonEmail || ''
     };
 
-    const escalationToken = buildEscalationToken(getReadyData, req.auth.email);
-    getReadyData.escalationUrl = `${buildPublicApiBaseUrl(req)}/api/getready/escalate?token=${encodeURIComponent(escalationToken)}`;
+    attachEscalationUrl(getReadyData, req, senderEmail);
 
     // Send email with sender in CC
-    const sendResult = await sendGetReadyEmail(getReadyData, [], req.auth.email);
+    const sendResult = await sendGetReadyEmail(getReadyData, [], senderEmail);
 
     // Notify Teams channel
     await sendGetReadyWebhook(getReadyData);
@@ -187,8 +233,8 @@ router.post('/send-email', authenticate, async (req, res) => {
       model: modelName,
       color,
       due_date: buildDueDate(getReadyDate, promiseTime, dueBy),
-      submitted_by_name: salesperson || req.auth.userName,
-      submitted_by_email: salespersonEmail || req.auth.email,
+      submitted_by_name: salesperson || authenticatedName,
+      submitted_by_email: senderEmail,
       instructions: Array.isArray(itemsNeeded) ? itemsNeeded : [],
       comments: comments || '',
       location: location || 'DETAIL',
