@@ -7,7 +7,6 @@ const bcrypt = require('bcrypt');
 // Add debugging middleware
 router.use((req, res, next) => {
   console.log('Users route hit:', req.method, req.path);
-  console.log('Auth header:', req.headers.authorization);
   next();
 });
 

@@ -11,10 +11,13 @@ const authenticate = (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    console.log('Token:', token); // For debugging
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('Decoded token:', decoded);
+    console.log('Authenticated user:', {
+      userId: decoded.userId,
+      role: decoded.role,
+      name: decoded.name
+    });
     req.auth = decoded;
     next();
   } catch (error) {
