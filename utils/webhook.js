@@ -50,6 +50,18 @@ function buildGetReadyTeamsMessage(getReadyData = {}) {
   return `Get Ready submitted: ${stockNumber} - ${vehicle} for ${customerName}. Due by: ${dueBy}. Salesperson: ${salesperson}.`;
 }
 
+function buildTeamsMessageFields(title, message) {
+  return {
+    teamsMessage: message,
+    messageText: message,
+    messageTitle: title,
+    text: message,
+    summary: message,
+    plainText: message,
+    notificationText: message
+  };
+}
+
 /**
  * Send webhook notification for sales operations
  * @param {string} action - 'add' or 'delete'
@@ -99,9 +111,7 @@ async function sendSalesWebhook(action, saleData, userData = {}) {
 
     // Format the payload to match what your Power Automate flow expects
     const payload = {
-      teamsMessage,
-      messageText: teamsMessage,
-      messageTitle: title,
+      ...buildTeamsMessageFields(title, teamsMessage),
       attachments: [
         {
           contentType: "application/vnd.microsoft.card.adaptive",
@@ -270,9 +280,7 @@ async function sendGetReadyWebhook(getReadyData = {}) {
     const teamsMessage = buildGetReadyTeamsMessage(getReadyData);
 
     const payload = {
-      teamsMessage,
-      messageText: teamsMessage,
-      messageTitle: 'Get Ready Submitted - ChipBoard Bot',
+      ...buildTeamsMessageFields('Get Ready Submitted - ChipBoard Bot', teamsMessage),
       attachments: [
         {
           contentType: 'application/vnd.microsoft.card.adaptive',
