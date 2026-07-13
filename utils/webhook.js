@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // Webhook URLs for Microsoft Teams
 // Sales notifications
-const SALES_WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL || 'https://defaultfb12319557d4485c8875f5c0f8136c.67.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b76a5e4ad5ea49978990e86679806fc4/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=ihlvAFpb9QOX84aQgpqC5a6mBRyFeFYaTizymibcfnU';
+const SALES_WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL;
 // Get Ready notifications
 const GETREADY_WEBHOOK_URL = process.env.TEAMS_GETREADY_WEBHOOK_URL;
 
