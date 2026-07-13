@@ -6,6 +6,50 @@ const SALES_WEBHOOK_URL = process.env.TEAMS_WEBHOOK_URL || 'https://defaultfb123
 // Get Ready notifications
 const GETREADY_WEBHOOK_URL = process.env.TEAMS_GETREADY_WEBHOOK_URL;
 
+function compactValue(value, fallback = 'Unknown') {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  const normalized = String(value).trim();
+  return normalized || fallback;
+}
+
+function buildVehicleLabel(data = {}) {
+  return [data.year, data.make, data.model]
+    .map((part) => compactValue(part, ''))
+    .filter(Boolean)
+    .join(' ') || 'Vehicle';
+}
+
+function buildSaleTeamsMessage(action, saleData = {}) {
+  const stockNumber = compactValue(saleData.stockNumber, 'No stock number');
+  const vehicle = buildVehicleLabel(saleData);
+  const clientName = compactValue(saleData.clientName, 'No client');
+  const advisor = compactValue(saleData.advisor, 'No advisor');
+  const isWholesale = saleData.type === 'Wholesale';
+
+  if (action === 'delete') {
+    return `Sale deleted: ${stockNumber} - ${vehicle} for ${clientName}. Advisor: ${advisor}.`;
+  }
+
+  if (isWholesale) {
+    return `Wholesale sent to auction: ${stockNumber} - ${vehicle} for ${clientName}. Advisor: ${advisor}.`;
+  }
+
+  return `Vehicle sold: ${stockNumber} - ${vehicle} for ${clientName}. Advisor: ${advisor}.`;
+}
+
+function buildGetReadyTeamsMessage(getReadyData = {}) {
+  const stockNumber = compactValue(getReadyData.getReadyId, 'No stock number');
+  const vehicle = compactValue(getReadyData.vehicle, 'Vehicle');
+  const dueBy = compactValue(getReadyData.dueBy, 'No due date');
+  const salesperson = compactValue(getReadyData.salesperson, 'No salesperson');
+  const customerName = compactValue(getReadyData.customerName, 'No customer');
+
+  return `Get Ready submitted: ${stockNumber} - ${vehicle} for ${customerName}. Due by: ${dueBy}. Salesperson: ${salesperson}.`;
+}
+
 /**
  * Send webhook notification for sales operations
  * @param {string} action - 'add' or 'delete'
@@ -51,9 +95,13 @@ async function sendSalesWebhook(action, saleData, userData = {}) {
       : isWholesale
         ? `Sent to ${saleData.clientName} Auction - ChipBoard Bot`
         : 'Vehicle Sold - ChipBoard Bot';
+    const teamsMessage = buildSaleTeamsMessage(action, saleData);
 
     // Format the payload to match what your Power Automate flow expects
     const payload = {
+      teamsMessage,
+      messageText: teamsMessage,
+      messageTitle: title,
       attachments: [
         {
           contentType: "application/vnd.microsoft.card.adaptive",
@@ -219,7 +267,12 @@ async function sendGetReadyWebhook(getReadyData = {}) {
       });
     }
 
+    const teamsMessage = buildGetReadyTeamsMessage(getReadyData);
+
     const payload = {
+      teamsMessage,
+      messageText: teamsMessage,
+      messageTitle: 'Get Ready Submitted - ChipBoard Bot',
       attachments: [
         {
           contentType: 'application/vnd.microsoft.card.adaptive',
