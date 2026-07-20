@@ -23,9 +23,15 @@ const requireAdmin = (req, res, next) => {
   }
   return res.status(403).json({ message: 'Admin access required' });
 };
+const requireManager = (req, res, next) => {
+  if (req.auth && ['Admin', 'Manager'].includes(req.auth.role)) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Manager access required' });
+};
 const { parseInventory, parseVauto } = require('../lib/parsers');
 const { processFleet } = require('../lib/fleet');
-const { renderSheet } = require('../lib/report');
+const { renderSheet, primaryTableOnly } = require('../lib/report');
 const store = require('../lib/settings');
 const { parseCalculatorWorkbook } = require('../lib/calculatorImport');
 
@@ -44,7 +50,10 @@ router.get('/sheet', authenticate, async (req, res) => {
     const staleRates = Boolean(
       updatedAt && sheet.meta.generatedAt
       && new Date(updatedAt) > new Date(sheet.meta.generatedAt));
-    res.json({ html: sheet.html, meta: sheet.meta, staleRates });
+    const html = req.auth.role === 'Salesperson'
+      ? primaryTableOnly(sheet.html)
+      : sheet.html;
+    res.json({ html, meta: sheet.meta, staleRates });
   } catch (error) {
     console.error('Error loading sheet:', error);
     res.status(500).json({ message: 'Failed to load sheet' });
@@ -54,6 +63,7 @@ router.get('/sheet', authenticate, async (req, res) => {
 router.post(
   '/generate',
   authenticate,
+  requireManager,
   upload.fields([{ name: 'inventory', maxCount: 1 }, { name: 'vauto', maxCount: 1 }]),
   async (req, res) => {
     try {
