@@ -29,6 +29,7 @@ const keysRouter = require('./routes/keys');
 const getreadyRoutes = require('./routes/getready');
 const loanerRoutes = require('./routes/loaners');
 const contestRoutes = require('./routes/contests');
+const loanerPricingRoutes = require('./routes/loanerPricing');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -42,6 +43,7 @@ app.use('/api/keys', keysRouter);
 app.use('/api/getready', getreadyRoutes);
 app.use('/api/loaners', loanerRoutes);
 app.use('/api/contests', contestRoutes);
+app.use('/api/loaner-pricing', loanerPricingRoutes);
 
 // Test route directly in server.js
 app.post('/api/test-email', (req, res) => {
@@ -62,6 +64,7 @@ console.log('- /api/keys');
 console.log('- /api/getready');
 console.log('- /api/loaners');
 console.log('- /api/contests');
+console.log('- /api/loaner-pricing');
 
 // Error handling middleware
 app.use((err, req, res, next) => {
