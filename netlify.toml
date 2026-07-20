@@ -1,0 +1,6 @@
+[build]
+  # The deployable React application is maintained in the frontend submodule.
+  base = "frontend"
+  command = "npm run build"
+  publish = "build"
+  functions = "netlify/functions"
