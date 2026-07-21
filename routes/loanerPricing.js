@@ -23,9 +23,16 @@ const requireAdmin = (req, res, next) => {
   }
   return res.status(403).json({ message: 'Admin access required' });
 };
+const requireManager = (req, res, next) => {
+  if (req.auth && ['Admin', 'Manager'].includes(req.auth.role)) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Manager access required' });
+};
 const { parseInventory, parseVauto } = require('../lib/parsers');
 const { processFleet } = require('../lib/fleet');
-const { renderSheet } = require('../lib/report');
+const { buildSnapshot, compareSnapshots } = require('../lib/loanerChanges');
+const { renderSheet, renderInventoryManagerReport, primaryTableOnly } = require('../lib/report');
 const store = require('../lib/settings');
 const { parseCalculatorWorkbook } = require('../lib/calculatorImport');
 
@@ -33,6 +40,20 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
 });
+
+function mergeInventoryFiles(files) {
+  const merged = new Map();
+  for (const file of files) {
+    const inventory = parseInventory(file.buffer);
+    for (const [stock, unit] of inventory.entries()) {
+      const existing = merged.get(stock);
+      if (!existing || (unit.miles || 0) > (existing.miles || 0)) {
+        merged.set(stock, unit);
+      }
+    }
+  }
+  return merged;
+}
 
 router.get('/sheet', authenticate, async (req, res) => {
   try {
@@ -44,28 +65,59 @@ router.get('/sheet', authenticate, async (req, res) => {
     const staleRates = Boolean(
       updatedAt && sheet.meta.generatedAt
       && new Date(updatedAt) > new Date(sheet.meta.generatedAt));
-    res.json({ html: sheet.html, meta: sheet.meta, staleRates });
+    const html = req.auth.role === 'Salesperson'
+      ? primaryTableOnly(sheet.html)
+      : sheet.html;
+    res.json({ html, meta: sheet.meta, staleRates });
   } catch (error) {
     console.error('Error loading sheet:', error);
     res.status(500).json({ message: 'Failed to load sheet' });
   }
 });
 
+router.get('/inventory-manager-report', authenticate, requireManager, async (req, res) => {
+  try {
+    const sheet = await store.loadSheet();
+    if (!sheet) {
+      return res.status(404).json({ message: 'No sheet generated yet' });
+    }
+    const settings = await store.loadSettings();
+    const html = renderInventoryManagerReport(
+      sheet.meta.inventoryManagerChanges || [],
+      settings,
+      {
+        reportDate: sheet.meta.generatedAt ? new Date(sheet.meta.generatedAt) : new Date(),
+        previousGeneratedAt: sheet.meta.previousGeneratedAt || null,
+      }
+    );
+    res.json({ html, meta: sheet.meta });
+  } catch (error) {
+    console.error('Error loading inventory manager report:', error);
+    res.status(500).json({ message: 'Failed to load inventory manager report' });
+  }
+});
+
 router.post(
   '/generate',
   authenticate,
-  upload.fields([{ name: 'inventory', maxCount: 1 }, { name: 'vauto', maxCount: 1 }]),
+  requireManager,
+  upload.fields([{ name: 'inventory', maxCount: 10 }, { name: 'vauto', maxCount: 1 }]),
   async (req, res) => {
     try {
-      const inventoryFile = req.files?.inventory?.[0];
+      const inventoryFiles = req.files?.inventory || [];
       const vautoFile = req.files?.vauto?.[0];
-      if (!inventoryFile || !vautoFile) {
-        return res.status(400).json({ message: 'Both inventory and vauto files are required' });
+      if (!inventoryFiles.length || !vautoFile) {
+        return res.status(400).json({ message: 'At least one inventory file and one vAuto file are required' });
       }
-      const inventory = parseInventory(inventoryFile.buffer);
+      const previousSheet = await store.loadSheet();
+      const inventory = mergeInventoryFiles(inventoryFiles);
       const vauto = parseVauto(vautoFile.buffer);
       const settings = await store.loadSettings();
       const report = processFleet(inventory, vauto, settings);
+      const loanerSnapshot = buildSnapshot(report);
+      const previousSnapshot = previousSheet?.meta?.loanerSnapshot || [];
+      report.previousGeneratedAt = previousSheet?.meta?.generatedAt || null;
+      report.inventoryChanges = compareSnapshots(previousSnapshot, loanerSnapshot);
       const html = renderSheet(report, settings, {
         includeDisclosures: req.body.disclosures === 'true' || req.body.disclosures === 'on',
       });
@@ -75,6 +127,11 @@ router.post(
         priced: report.priced.length,
         attention: report.needsAttention.length,
         mileageUpdates: report.mileageUpdates.length,
+        inventoryFiles: inventoryFiles.length,
+        inventoryManagerChangeCount: report.inventoryChanges.length,
+        inventoryManagerChanges: report.inventoryChanges,
+        previousGeneratedAt: report.previousGeneratedAt,
+        loanerSnapshot,
         duplicatesRemoved: report.duplicatesRemoved,
         missingFromVauto: report.missingFromVauto.length,
       };
