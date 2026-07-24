@@ -5,6 +5,8 @@ const { oldPool } = require('../db');
 
 const managerRoles = ['Admin', 'Manager'];
 
+const isAdmin = (req) => req.auth?.role === 'Admin';
+
 const isManager = (req) => managerRoles.includes(req.auth?.role);
 
 const requireManager = (req, res, next) => {
@@ -14,7 +16,29 @@ const requireManager = (req, res, next) => {
   next();
 };
 
+const requireEnabledContest = async (req, res, next) => {
+  try {
+    await ensureSchema();
+    const [[contest]] = await oldPool.query(
+      'SELECT is_enabled FROM contests WHERE id = ?',
+      [req.params.contestId]
+    );
+
+    if (!contest) {
+      return res.status(404).json({ message: 'Contest not found' });
+    }
+    if (!contest.is_enabled) {
+      return res.status(409).json({ message: 'Mission 250 is currently turned off' });
+    }
+    next();
+  } catch (error) {
+    console.error('Error checking contest availability:', error);
+    res.status(500).json({ message: 'Error checking contest availability', error: error.message });
+  }
+};
+
 let schemaReady = false;
+let schemaReadyPromise = null;
 
 const ensureColumn = async (tableName, columnName, definition) => {
   const [columns] = await oldPool.query(`
@@ -33,7 +57,10 @@ const ensureColumn = async (tableName, columnName, definition) => {
 const ensureSchema = async () => {
   if (schemaReady) return;
 
-  await oldPool.query(`
+  if (!schemaReadyPromise) {
+    schemaReadyPromise = (async () => {
+
+      await oldPool.query(`
     CREATE TABLE IF NOT EXISTS contests (
       id INT AUTO_INCREMENT PRIMARY KEY,
       organization_id INT NULL,
@@ -42,6 +69,7 @@ const ensureSchema = async () => {
       end_date DATE NOT NULL,
       target_points INT NOT NULL DEFAULT 0,
       branding_logo VARCHAR(255) NULL,
+      is_enabled TINYINT(1) NOT NULL DEFAULT 0,
       status ENUM('draft', 'active', 'closed') NOT NULL DEFAULT 'active',
       created_by INT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -50,6 +78,8 @@ const ensureSchema = async () => {
       INDEX idx_contests_organization (organization_id)
     )
   `);
+
+  await ensureColumn('contests', 'is_enabled', 'TINYINT(1) NOT NULL DEFAULT 0');
 
   await oldPool.query(`
     CREATE TABLE IF NOT EXISTS contest_categories (
@@ -109,7 +139,16 @@ const ensureSchema = async () => {
     )
   `);
 
-  schemaReady = true;
+      schemaReady = true;
+    })();
+  }
+
+  try {
+    await schemaReadyPromise;
+  } catch (error) {
+    schemaReadyPromise = null;
+    throw error;
+  }
 };
 
 const toDateOnly = (value) => {
@@ -144,9 +183,9 @@ const serializeCategory = (category) => ({
   is_rewards: Boolean(category.is_rewards)
 });
 
-const getActiveContestId = async (organizationId) => {
+const getCurrentContest = async (organizationId) => {
   const params = [];
-  let orgFilter = '';
+  let orgFilter = 'AND organization_id IS NULL';
 
   if (organizationId) {
     orgFilter = 'AND (organization_id = ? OR organization_id IS NULL)';
@@ -156,21 +195,24 @@ const getActiveContestId = async (organizationId) => {
   const [rows] = await oldPool.query(`
     SELECT *
     FROM contests
-    WHERE status IN ('active', 'closed')
+    WHERE 1 = 1
     ${orgFilter}
-    ORDER BY organization_id IS NULL ASC, FIELD(status, 'active', 'closed'), start_date DESC, id DESC
+    ORDER BY organization_id IS NULL ASC, id DESC
     LIMIT 1
   `, params);
 
-  if (rows.length) return rows[0].id;
-  return seedMission250(organizationId);
+  if (rows.length) return rows[0];
+
+  const contestId = await seedMission250(organizationId);
+  const [[contest]] = await oldPool.query('SELECT * FROM contests WHERE id = ?', [contestId]);
+  return contest;
 };
 
 const seedMission250 = async (organizationId) => {
   const year = new Date().getFullYear();
   const [result] = await oldPool.query(`
-    INSERT INTO contests (organization_id, name, start_date, end_date, target_points, status)
-    VALUES (?, 'Mission 250', ?, ?, 250, 'active')
+    INSERT INTO contests (organization_id, name, start_date, end_date, target_points, is_enabled, status)
+    VALUES (?, 'Mission 250', ?, ?, 250, 0, 'active')
   `, [organizationId || null, `${year}-07-01`, `${year}-07-31`]);
 
   const contestId = result.insertId;
@@ -342,6 +384,7 @@ const loadContestBundle = async (contestId, req) => {
   return {
     contest: {
       ...contest,
+      is_enabled: Boolean(contest.is_enabled),
       start_date: toDateOnly(contest.start_date),
       end_date: toDateOnly(contest.end_date),
       target_points: Number(contest.target_points || 0),
@@ -370,11 +413,35 @@ const loadContestBundle = async (contestId, req) => {
 
 router.use(authenticate);
 
+router.get('/status', async (req, res) => {
+  try {
+    await ensureSchema();
+    const contest = await getCurrentContest(req.auth.organizationId);
+    res.json({
+      enabled: Boolean(contest?.is_enabled),
+      name: contest?.name || 'Mission 250',
+      canManage: isManager(req),
+      canViewWhenDisabled: isAdmin(req)
+    });
+  } catch (error) {
+    console.error('Error loading contest status:', error);
+    res.status(500).json({ message: 'Error loading contest status', error: error.message });
+  }
+});
+
 router.get('/active', async (req, res) => {
   try {
     await ensureSchema();
-    const contestId = await getActiveContestId(req.auth.organizationId);
-    const bundle = await loadContestBundle(contestId, req);
+    const contest = await getCurrentContest(req.auth.organizationId);
+
+    if (!contest?.is_enabled && !isAdmin(req)) {
+      return res.status(404).json({
+        message: 'Mission 250 is currently turned off',
+        code: 'CONTEST_DISABLED'
+      });
+    }
+
+    const bundle = await loadContestBundle(contest.id, req);
     res.json(bundle);
   } catch (error) {
     console.error('Error loading contest:', error);
@@ -390,7 +457,7 @@ router.put('/:contestId/setup', requireManager, async (req, res) => {
 
     await oldPool.query(`
       UPDATE contests
-      SET name = ?, start_date = ?, end_date = ?, target_points = ?, branding_logo = ?, status = ?
+      SET name = ?, start_date = ?, end_date = ?, target_points = ?, branding_logo = ?, is_enabled = ?, status = ?
       WHERE id = ?
     `, [
       contest.name,
@@ -398,6 +465,7 @@ router.put('/:contestId/setup', requireManager, async (req, res) => {
       contest.end_date,
       Number(contest.target_points || contest.targetPoints || 0),
       contest.branding_logo || contest.brandingLogo || null,
+      contest.is_enabled || contest.isEnabled ? 1 : 0,
       contest.status || 'active',
       contestId
     ]);
@@ -445,7 +513,7 @@ router.put('/:contestId/setup', requireManager, async (req, res) => {
   }
 });
 
-router.post('/:contestId/deals/:saleId/score', requireManager, async (req, res) => {
+router.post('/:contestId/deals/:saleId/score', requireManager, requireEnabledContest, async (req, res) => {
   try {
     await ensureSchema();
     const contestId = req.params.contestId;
@@ -492,7 +560,7 @@ router.post('/:contestId/deals/:saleId/score', requireManager, async (req, res) 
   }
 });
 
-router.post('/:contestId/publish', requireManager, async (req, res) => {
+router.post('/:contestId/publish', requireManager, requireEnabledContest, async (req, res) => {
   try {
     await ensureSchema();
     const contestId = req.params.contestId;
@@ -528,7 +596,7 @@ router.post('/:contestId/publish', requireManager, async (req, res) => {
   }
 });
 
-router.post('/:contestId/bonuses', requireManager, async (req, res) => {
+router.post('/:contestId/bonuses', requireManager, requireEnabledContest, async (req, res) => {
   try {
     await ensureSchema();
     const contestId = req.params.contestId;
@@ -552,7 +620,7 @@ router.post('/:contestId/bonuses', requireManager, async (req, res) => {
   }
 });
 
-router.post('/:contestId/close', requireManager, async (req, res) => {
+router.post('/:contestId/close', requireManager, requireEnabledContest, async (req, res) => {
   try {
     await ensureSchema();
     await oldPool.query('UPDATE contests SET status = ? WHERE id = ?', ['closed', req.params.contestId]);
