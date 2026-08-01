@@ -45,9 +45,10 @@ const checkPermission = (permissions) => {
         case 'delete_sales':
           return ['Manager'].includes(userRole);
         case 'view_users':
+          return ['Manager'].includes(userRole);
         case 'edit_users':
         case 'delete_users':
-          return ['Manager'].includes(userRole);
+          return false;
         default:
           return false;
       }
@@ -61,4 +62,12 @@ const checkPermission = (permissions) => {
   };
 };
 
-module.exports = { authenticate, checkPermission };
+const requireAdmin = (req, res, next) => {
+  if (req.auth?.role !== 'Admin') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+
+  next();
+};
+
+module.exports = { authenticate, checkPermission, requireAdmin };

@@ -6,7 +6,18 @@ const { authenticate } = require('../middleware/auth');
 const { sendGetReadyEmail, sendGetReadyEscalationEmail, escapeHtml } = require('../utils/getReadyEmail');
 const { sendGetReadyWebhook } = require('../utils/webhook');
 
-router.use(express.urlencoded({ extended: false }));
+const escalationFormParser = express.urlencoded({ extended: false, limit: '16kb' });
+
+function parseEscalationForm(req, res, next) {
+  escalationFormParser(req, res, (error) => {
+    if (error) {
+      console.error('Error parsing Get Ready escalation form:', error);
+      return res.status(400).send('The escalation form could not be read. Please reopen the link from the Get Ready email and try again.');
+    }
+
+    next();
+  });
+}
 
 function buildDueDate(getReadyDate, promiseTime, dueBy) {
   if (getReadyDate) {
@@ -223,7 +234,7 @@ router.get('/escalate', async (req, res) => {
     const decoded = verifyEscalationToken(token);
     const getReadyData = decoded.getReadyData;
     const escapedStockNumber = escapeHtml(getReadyData.getReadyId || 'this stock number');
-    const escapedToken = escapeHtml(token);
+    const escapedFormAction = escapeHtml(`/api/getready/escalate?token=${encodeURIComponent(token)}`);
 
     res.status(200).send(`
       <!doctype html>
@@ -245,8 +256,7 @@ router.get('/escalate', async (req, res) => {
           <main>
             <h1>Escalate ${escapedStockNumber}?</h1>
             <p>This will send an urgent escalation email to the same recipients from the original Get Ready email.</p>
-            <form method="post" action="/api/getready/escalate">
-              <input type="hidden" name="token" value="${escapedToken}" />
+            <form method="post" action="${escapedFormAction}" enctype="application/x-www-form-urlencoded">
               <label for="escalationComments">Comments to include in the urgent email</label>
               <textarea id="escalationComments" name="escalationComments" placeholder="Add what needs attention, who is waiting, or what has been missed."></textarea>
               <button type="submit">Send Urgent Escalation Email</button>
@@ -261,12 +271,12 @@ router.get('/escalate', async (req, res) => {
   }
 });
 
-router.post('/escalate', async (req, res) => {
+router.post('/escalate', parseEscalationForm, async (req, res) => {
   console.log('Get Ready escalation send request received');
 
   try {
-    const token = req.body.token || req.query.token;
-    const escalationComments = typeof req.body.escalationComments === 'string'
+    const token = req.query.token || req.body?.token;
+    const escalationComments = typeof req.body?.escalationComments === 'string'
       ? req.body.escalationComments.trim()
       : '';
     const decoded = verifyEscalationToken(token);
