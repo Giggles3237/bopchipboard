@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { authenticate } = require('../middleware/auth');
+const { buildLoanerRequestEmail } = require('../utils/loanerRequestEmail');
 
 async function submitToLoanerFlow(payload) {
   const url = process.env.LOANER_REQUEST_FLOW_URL;
@@ -84,20 +85,31 @@ router.post('/request', authenticate, async (req, res) => {
       clientAdvisorEmail: normalizedClientAdvisorEmail,
       respondersEmail: normalizedRespondersEmail
     };
+    const email = buildLoanerRequestEmail(loanerRequest);
+    const flowPayload = {
+      ...loanerRequest,
+      emailSubject: email.subject,
+      emailBody: email.body,
+      emailHtml: email.html,
+      emailIsHtml: email.isHtml,
+      markedSold: email.markedSold,
+      accountingNote: email.accountingNote,
+      accountingStockNumber: email.accountingStockNumber
+    };
 
-    const flowResult = await submitToLoanerFlow(loanerRequest);
+    const flowResult = await submitToLoanerFlow(flowPayload);
 
     if (!flowResult.ok) {
       return res.status(502).json({
         message: 'Loaner request could not be submitted to Power Automate.',
-        data: loanerRequest,
+        data: flowPayload,
         flow: flowResult
       });
     }
 
     res.status(200).json({
       message: 'Loaner request submitted successfully',
-      data: loanerRequest,
+      data: flowPayload,
       flow: flowResult
     });
   } catch (error) {

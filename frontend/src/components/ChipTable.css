@@ -54,6 +54,8 @@ html, body, #root {
   flex-wrap: wrap;
   gap: 10px;
   padding: 5px 0;
+  flex: 1;
+  min-width: 0;
 }
 
 /* Keep header visible but not fixed */
@@ -86,34 +88,45 @@ html, body, #root {
 
 .advisor-name {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   background: var(--light-gray);
-  padding: 8px 16px;
-  margin: 0 0 8px 0;
-  width: 100%;
+  padding: 10px 14px;
+  margin: 0;
+  width: 180px;
+  min-height: 74px;
+  flex: 0 0 180px;
 }
 
 .advisor-name h3 {
   margin: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
 }
 
 .advisor-name-with-badges {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .advisor-name-with-badges span {
   margin-right: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Remove any overflow settings from parent containers */
 .advisor-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 20px;
-  padding: 10px;
+  padding: 0;
   border-radius: 8px;
   padding-bottom: 15px;
 }
@@ -136,7 +149,6 @@ html, body, #root {
 .advisor-stats {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   width: 100%;
 }
@@ -148,7 +160,7 @@ html, body, #root {
 }
 
 .advisor-stats .training-badges {
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .advisor-stats .delivered {
@@ -512,6 +524,7 @@ html, body, #root {
   }
   
   .advisor-section {
+    display: block;
     background-color: transparent;
     padding: 0;
     margin-bottom: 24px;
@@ -525,6 +538,9 @@ html, body, #root {
   .advisor-name {
     background-color: transparent;
     padding: 10px 0;
+    width: auto;
+    min-height: 0;
+    flex-basis: auto;
   }
   
   .monthly-goal {
