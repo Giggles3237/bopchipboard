@@ -1,12 +1,7 @@
-import React, { useMemo, useCallback, useEffect, useState } from 'react';
-import { format } from 'date-fns';
-import axios from 'axios';
+import React, { useMemo, useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { API_BASE_URL } from '../config';
 import Totals from './Totals';
-import MonthlyGoal from './MonthlyGoal';
 import Chip from './Chip';
-import TrainingBadges from './TrainingBadges';
 import './ChipTable.css';
 
 /**
@@ -15,7 +10,6 @@ import './ChipTable.css';
 function ChipTable({ sales = [], onEdit }) {
   const { auth } = useAuth();
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [userTrainingData, setUserTrainingData] = useState({});
 
   // Add responsive handler
   useEffect(() => {
@@ -74,116 +68,18 @@ function ChipTable({ sales = [], onEdit }) {
     });
   }, [sales, auth?.user?.name, auth?.user?.role]);
 
-  const fetchGoals = useCallback(async () => {
-    try {
-      const currentMonth = format(new Date(), 'yyyy-MM');
-      
-      // Get all unique advisors from sales
-      const advisors = [...new Set(sales.map(sale => sale.advisor))];
-      
-      // Fetch goals for each advisor
-      const goalsMap = {};
-      await Promise.all(
-        advisors.map(async (advisor) => {
-          try {
-            const response = await axios.get(
-              `${API_BASE_URL}/goals/${advisor}/${currentMonth}`,
-              {
-                headers: { 
-                  'Authorization': `Bearer ${auth.token}`,
-                  'Content-Type': 'application/json'
-                }
-              }
-            );
-            if (response.data?.goal_count) {
-              goalsMap[advisor] = response.data.goal_count;
-            }
-          } catch (error) {
-            console.error(`Error fetching goal for ${advisor}:`, error);
-          }
-        })
-      );
-
-      console.log('Goals Debug:', {
-        processedGoals: goalsMap,
-        currentMonth,
-        advisors
-      });
-
-    } catch (error) {
-      console.error('Error fetching goals:', error);
-    }
-  }, [sales, auth.token]);
-
-  useEffect(() => {
-    fetchGoals();
-  }, [sales, fetchGoals]);
-
-  // Fetch user training data
-  const fetchUserTrainingData = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/users`, {
-        headers: { 
-          'Authorization': `Bearer ${auth.token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const trainingData = {};
-      response.data.forEach(user => {
-        trainingData[user.name] = {
-          ethos_training_complete: user.ethos_training_complete || false,
-          bmw_training_complete: user.bmw_training_complete || false
-        };
-      });
-      
-      setUserTrainingData(trainingData);
-    } catch (error) {
-      console.error('Error fetching user training data:', error);
-    }
-  }, [auth.token]);
-
-  useEffect(() => {
-    fetchUserTrainingData();
-  }, [fetchUserTrainingData]);
-
-  // Add a function to determine if goal number should be visible
-  const canSeeGoalNumber = (advisorName) => {
-    return isManagerOrAdmin || auth?.user?.name === advisorName;
-  };
-
   return (
     <div className={`chip-table ${isMobile ? 'mobile-view' : ''}`}>
       {isManagerOrAdmin && (
         <Totals sales={sales} />
       )}
       
-      {sortedAdvisors.map(({ name, delivered, pending }) => (
+      {sortedAdvisors.map(({ name }) => (
         <div key={name} className="advisor-section">
           <div className="advisor-name">
             <h3>
               <div className="advisor-name-with-badges">
                 <span>{name}</span>
-              </div>
-              <div className="advisor-stats">
-                <div className="stats-left">
-                  <span className="delivered">{delivered}</span>
-                  <span className="pending">({pending})</span>
-                  <MonthlyGoal 
-                    advisor={name} 
-                    month={format(new Date(), 'yyyy-MM')} 
-                    onUpdate={fetchGoals}
-                    deliveredCount={delivered}
-                    showGoalNumber={canSeeGoalNumber(name)}
-                  />
-                </div>
-                <div className="training-badges">
-                  <TrainingBadges 
-                    ethosTrainingComplete={userTrainingData[name]?.ethos_training_complete}
-                    bmwTrainingComplete={userTrainingData[name]?.bmw_training_complete}
-                    size="small"
-                  />
-                </div>
               </div>
             </h3>
           </div>
