@@ -53,9 +53,7 @@ html, body, #root {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 5px 0;
-  flex: 1;
-  min-width: 0;
+  padding: 8px 0 16px;
 }
 
 /* Keep header visible but not fixed */
@@ -89,28 +87,33 @@ html, body, #root {
 .advisor-name {
   display: flex;
   align-items: center;
-  background: var(--light-gray);
-  padding: 10px 14px;
+  background: transparent;
+  padding: 0 0 6px;
   margin: 0;
-  width: 180px;
-  min-height: 74px;
-  flex: 0 0 180px;
+  width: 100%;
+  min-height: 0;
 }
 
 .advisor-name h3 {
   margin: 0;
   display: flex;
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   width: 100%;
+}
+
+.advisor-name h3::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .advisor-name-with-badges {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  flex: 0 0 auto;
 }
 
 .advisor-name-with-badges span {
@@ -122,13 +125,10 @@ html, body, #root {
 
 /* Remove any overflow settings from parent containers */
 .advisor-section {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
   padding: 0;
-  border-radius: 8px;
-  padding-bottom: 15px;
+  border-radius: 0;
+  padding-bottom: 0;
 }
 
 .advisor-section:hover {
@@ -147,10 +147,7 @@ html, body, #root {
 }
 
 .advisor-stats {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
+  display: none;
 }
 
 .advisor-stats .stats-left {
@@ -430,12 +427,16 @@ html, body, #root {
 }
 
 .night-mode .advisor-name {
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
   color: #4d8fe8;
 }
 
 .night-mode .advisor-name h3 {
   color: #4d8fe8;
+}
+
+.night-mode .advisor-name h3::after {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .app-container {
@@ -524,7 +525,6 @@ html, body, #root {
   }
   
   .advisor-section {
-    display: block;
     background-color: transparent;
     padding: 0;
     margin-bottom: 24px;
@@ -537,10 +537,9 @@ html, body, #root {
   
   .advisor-name {
     background-color: transparent;
-    padding: 10px 0;
+    padding: 0 0 6px;
     width: auto;
     min-height: 0;
-    flex-basis: auto;
   }
   
   .monthly-goal {
