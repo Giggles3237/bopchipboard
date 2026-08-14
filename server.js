@@ -13,7 +13,14 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
 }));
-app.use(express.json());
+const jsonParser = express.json();
+app.use((req, res, next) => {
+  if (req.path === '/api/getready/escalate') {
+    return next();
+  }
+
+  return jsonParser(req, res, next);
+});
 
 
 

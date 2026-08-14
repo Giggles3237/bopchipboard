@@ -87,3 +87,65 @@ test('malformed escalation form data gets a useful response instead of the globa
   assert.match(responseText, /form could not be read/i);
   assert.doesNotMatch(responseText, /Something broke/i);
 });
+
+test('global JSON parser does not intercept Get Ready escalation submissions', async (t) => {
+  const previousSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = 'get-ready-escalation-test-secret';
+
+  const emailModule = require('../utils/getReadyEmail');
+  const originalSend = emailModule.sendGetReadyEscalationEmail;
+  let sentData;
+
+  emailModule.sendGetReadyEscalationEmail = async (data) => {
+    sentData = data;
+    return { to: ['test@example.com'], cc: null };
+  };
+
+  delete require.cache[require.resolve('../routes/getready')];
+  const getReadyRouter = require('../routes/getready');
+  const app = express();
+  const jsonParser = express.json();
+
+  app.use((req, res, next) => {
+    if (req.path === '/api/getready/escalate') {
+      return next();
+    }
+
+    return jsonParser(req, res, next);
+  });
+  app.use('/api/getready', getReadyRouter);
+  app.use((error, req, res, next) => {
+    res.status(500).json({ message: 'Something broke!', detail: error.message });
+  });
+
+  const server = await new Promise((resolve) => {
+    const listeningServer = app.listen(0, '127.0.0.1', () => resolve(listeningServer));
+  });
+
+  t.after(() => {
+    server.close();
+    emailModule.sendGetReadyEscalationEmail = originalSend;
+    process.env.JWT_SECRET = previousSecret;
+    delete require.cache[require.resolve('../routes/getready')];
+  });
+
+  const token = jwt.sign({
+    type: 'getready_escalation',
+    getReadyData: {
+      getReadyId: 'TEST-456',
+      vehicle: 'Test Vehicle'
+    }
+  }, process.env.JWT_SECRET);
+
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/getready/escalate?token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{'
+  });
+  const responseText = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(responseText, /Get Ready Escalated/);
+  assert.equal(sentData.getReadyId, 'TEST-456');
+  assert.doesNotMatch(responseText, /Something broke/i);
+});
