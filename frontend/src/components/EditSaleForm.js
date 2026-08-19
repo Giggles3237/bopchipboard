@@ -43,6 +43,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
   const [salespeople, setSalespeople] = useState([]);
   const [showGetReady, setShowGetReady] = useState(false);
   const [showLoanerRequest, setShowLoanerRequest] = useState(false);
+  const [isSendingGetReady, setIsSendingGetReady] = useState(false);
   const [getReadyDateManuallyChanged, setGetReadyDateManuallyChanged] = useState(false);
   const [getReadyData, setGetReadyData] = useState({
     location: 'annex',
@@ -208,6 +209,12 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
   };
 
   const handleSendGetReady = async () => {
+    if (isSendingGetReady) {
+      return;
+    }
+
+    setIsSendingGetReady(true);
+
     try {
       const dueDate = getReadyData.getReadyDate instanceof Date 
         ? getReadyData.getReadyDate.toLocaleDateString()
@@ -263,6 +270,8 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
         ? `${serverMessage}. Please log out and log back in, then try again.`
         : serverMessage;
       alert(`Error sending Get Ready email: ${readableMessage}`);
+    } finally {
+      setIsSendingGetReady(false);
     }
   };
 
@@ -605,8 +614,17 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
                       type="button" 
                       className="send-get-ready-button"
                       onClick={handleSendGetReady}
+                      disabled={isSendingGetReady}
+                      aria-busy={isSendingGetReady}
                     >
-                      Send Get Ready Email
+                      {isSendingGetReady ? (
+                        <>
+                          <span className="send-get-ready-spinner" aria-hidden="true" />
+                          Sending Get Ready...
+                        </>
+                      ) : (
+                        'Send Get Ready Email'
+                      )}
                     </button>
                   </div>
                 </div>
