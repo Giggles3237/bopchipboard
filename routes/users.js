@@ -416,11 +416,17 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-// Get salespeople and managers
+// Get active users who can be selected as advisors when adding or editing sales.
 router.get('/salespeople-and-managers', authenticate, async (req, res) => {
   try {
     const [users] = await oldPool.query(`
-      SELECT u.id, u.name, r.name as role 
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        r.name as role,
+        r.name as role_name,
+        u.status
       FROM users u
       JOIN roles r ON u.role_id = r.id
       WHERE r.name IN ('Salesperson', 'Manager') 

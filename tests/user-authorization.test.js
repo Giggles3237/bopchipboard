@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { checkPermission, requireAdmin } = require('../middleware/auth');
+const { oldPool } = require('../db');
 const usersRouter = require('../routes/users');
 
 const ALL_ROLES = ['Admin', 'Manager', 'Salesperson'];
@@ -116,6 +117,34 @@ const invokeRouteHandler = async (method, path, body) => {
   return { statusCode, responseBody };
 };
 
+const invokeUsersRoute = async (method, path, { body, auth } = {}) => {
+  const layer = usersRouter.stack.find(candidate =>
+    candidate.route?.path === path && candidate.route.methods[method]
+  );
+  assert.ok(layer, `${method.toUpperCase()} ${path} must exist`);
+
+  let statusCode = 200;
+  let responseBody;
+  const req = {
+    params: { id: '2' },
+    body,
+    auth: auth || { userId: 1, role: 'Manager' }
+  };
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json(payload) {
+      responseBody = payload;
+      return this;
+    }
+  };
+
+  await layer.route.stack.at(-1).handle(req, res);
+  return { statusCode, responseBody };
+};
+
 test('profile updates reject role, status, and password fields', async () => {
   for (const forbiddenField of ['role', 'status', 'password']) {
     const result = await invokeRouteHandler('put', '/:id/profile', { [forbiddenField]: 'value' });
@@ -135,5 +164,44 @@ test('specialized mutation endpoints reject fields owned by other endpoints', as
   for (const [method, path, body] of cases) {
     const result = await invokeRouteHandler(method, path, body);
     assert.equal(result.statusCode, 400, `${method.toUpperCase()} ${path} must reject unsupported fields`);
+  }
+});
+
+test('sales advisor selector returns active salespeople and managers with form fields', async () => {
+  const originalQuery = oldPool.query;
+  const rows = [
+    {
+      id: 1,
+      name: 'Alex Advisor',
+      email: 'alex@example.com',
+      role: 'Salesperson',
+      role_name: 'Salesperson',
+      status: 'active'
+    },
+    {
+      id: 2,
+      name: 'Morgan Manager',
+      email: 'morgan@example.com',
+      role: 'Manager',
+      role_name: 'Manager',
+      status: 'active'
+    }
+  ];
+
+  try {
+    oldPool.query = async (sql) => {
+      assert.match(sql, /u\.email/);
+      assert.match(sql, /r\.name as role/);
+      assert.match(sql, /r\.name as role_name/);
+      assert.match(sql, /r\.name IN \('Salesperson', 'Manager'\)/);
+      assert.match(sql, /u\.status = 'active'/);
+      return [rows];
+    };
+
+    const result = await invokeUsersRoute('get', '/salespeople-and-managers');
+    assert.equal(result.statusCode, 200);
+    assert.deepEqual(result.responseBody, rows);
+  } finally {
+    oldPool.query = originalQuery;
   }
 });
