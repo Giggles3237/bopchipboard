@@ -6,10 +6,25 @@ import { API_BASE_URL } from '../config';
 import { TV_SCREENS, DEFAULT_SETTINGS } from './TVScreens';
 import './TVDashboard.css';
 
+function normalizeSettings(settings) {
+  const hasSelectedAdvisors = Object.prototype.hasOwnProperty.call(settings || {}, 'selectedAdvisors');
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...(settings || {}),
+    activeScreens: Array.isArray(settings?.activeScreens) && settings.activeScreens.length > 0
+      ? settings.activeScreens
+      : DEFAULT_SETTINGS.activeScreens,
+    selectedAdvisors: hasSelectedAdvisors && Array.isArray(settings?.selectedAdvisors)
+      ? settings.selectedAdvisors
+      : DEFAULT_SETTINGS.selectedAdvisors,
+  };
+}
+
 function loadSettings() {
   try {
     const raw = localStorage.getItem('tv_dashboard_settings');
-    return raw ? JSON.parse(raw) : DEFAULT_SETTINGS;
+    return raw ? normalizeSettings(JSON.parse(raw)) : DEFAULT_SETTINGS;
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -20,7 +35,7 @@ function TVDashboard() {
 
   // Settings from localStorage
   const [settings, setSettings] = useState(loadSettings);
-  const { activeScreens, rotationInterval } = settings;
+  const { activeScreens, rotationInterval, selectedAdvisors } = settings;
 
   // Data
   const [advisors,     setAdvisors]     = useState([]);
@@ -79,8 +94,13 @@ function TVDashboard() {
       const goalsMap = {};
       (goalsRes.data || []).forEach(g => { goalsMap[g.advisor_name] = g.goal_count; });
 
+      const selectedAdvisorSet = Array.isArray(selectedAdvisors)
+        ? new Set(selectedAdvisors)
+        : null;
+
       const salespeople = usersRes.data
         .filter(u => u.role_name === 'Salesperson' && u.status === 'active')
+        .filter(u => !selectedAdvisorSet || selectedAdvisorSet.has(u.name))
         .map(u => u.name);
 
       const curMonth = salesRes.data.filter(s => {
@@ -88,9 +108,14 @@ function TVDashboard() {
         return d >= monthStart && d <= monthEnd;
       });
 
+      const visibleMonth = curMonth.filter(s => !selectedAdvisorSet || selectedAdvisorSet.has(s.advisor));
+
       const prevYear = salesRes.data.filter(s => {
         const d = new Date(s.deliveryDate);
-        return d >= prevYearStart && d <= prevYearEnd && s.type !== 'Wholesale';
+        return d >= prevYearStart &&
+          d <= prevYearEnd &&
+          s.type !== 'Wholesale' &&
+          (!selectedAdvisorSet || selectedAdvisorSet.has(s.advisor));
       });
 
       const advisorData = salespeople.map(name => {
@@ -106,7 +131,7 @@ function TVDashboard() {
       const totalGoal      = advisorData.reduce((s, a) => s + a.goal, 0);
 
       setAdvisors(advisorData);
-      setMonthSales(curMonth);
+      setMonthSales(visibleMonth);
       setPrevYearSales(prevYear);
       setTeamStats({ delivered: totalDelivered, pending: totalPending, goal: totalGoal });
       setLastUpdated(new Date());
@@ -115,7 +140,7 @@ function TVDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [auth.token]);
+  }, [auth.token, selectedAdvisors]);
 
   useEffect(() => {
     fetchData();

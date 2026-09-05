@@ -85,29 +85,32 @@ function AdminDashboard() {
             if (editingUser) {
                 console.log('Updating user with ID:', editingUser.id);
                 const requestConfig = { headers: { Authorization: `Bearer ${auth.token}` } };
-                const updates = [
-                    axios.put(`${API_BASE_URL}/users/${editingUser.id}/profile`, {
+                await axios.put(`${API_BASE_URL}/users/${editingUser.id}/profile`, {
                         name: formData.name,
                         email: formData.email,
                         organization: formData.organization,
                         ethos_training_complete: formData.ethos_training_complete,
                         bmw_training_complete: formData.bmw_training_complete
-                    }, requestConfig),
-                    axios.put(`${API_BASE_URL}/users/${editingUser.id}/role`, {
-                        role: formData.role
-                    }, requestConfig),
-                    axios.put(`${API_BASE_URL}/users/${editingUser.id}/status`, {
-                        status: formData.status
-                    }, requestConfig)
-                ];
+                    }, requestConfig);
 
-                if (formData.password) {
-                    updates.push(axios.put(`${API_BASE_URL}/users/${editingUser.id}/password`, {
-                        newPassword: formData.password
-                    }, requestConfig));
+                const originalRole = editingUser.role_name || editingUser.role;
+                if (formData.role !== originalRole) {
+                    await axios.put(`${API_BASE_URL}/users/${editingUser.id}/role`, {
+                        role: formData.role
+                    }, requestConfig);
                 }
 
-                await Promise.all(updates);
+                if (formData.status !== (editingUser.status || 'active')) {
+                    await axios.put(`${API_BASE_URL}/users/${editingUser.id}/status`, {
+                        status: formData.status
+                    }, requestConfig);
+                }
+
+                if (formData.password) {
+                    await axios.put(`${API_BASE_URL}/users/${editingUser.id}/password`, {
+                        newPassword: formData.password
+                    }, requestConfig);
+                }
                 setSuccess('User updated successfully');
             } else {
                 const response = await axios.post(`${API_BASE_URL}/users`, formData, {

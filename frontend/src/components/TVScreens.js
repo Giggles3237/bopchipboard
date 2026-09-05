@@ -23,4 +23,5 @@ export const TV_SCREENS = [
 export const DEFAULT_SETTINGS = {
   activeScreens: ['bar_chart', 'leaderboard', 'type_breakdown'],
   rotationInterval: 20,
+  selectedAdvisors: null,
 };

@@ -28,6 +28,39 @@ const getOrganizationId = async (organization) => {
   return result.insertId;
 };
 
+const buildProfileUpdate = async (updates) => {
+  const updateData = {};
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'name')) updateData.name = updates.name;
+  if (Object.prototype.hasOwnProperty.call(updates, 'email')) updateData.email = updates.email;
+  if (Object.prototype.hasOwnProperty.call(updates, 'ethos_training_complete')) {
+    if (typeof updates.ethos_training_complete !== 'boolean') {
+      const error = new Error('Ethos training status must be a boolean');
+      error.statusCode = 400;
+      throw error;
+    }
+    updateData.ethos_training_complete = Boolean(updates.ethos_training_complete);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'bmw_training_complete')) {
+    if (typeof updates.bmw_training_complete !== 'boolean') {
+      const error = new Error('BMW training status must be a boolean');
+      error.statusCode = 400;
+      throw error;
+    }
+    updateData.bmw_training_complete = Boolean(updates.bmw_training_complete);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'organization')) {
+    if (!updates.organization || typeof updates.organization !== 'string') {
+      const error = new Error('Organization is required');
+      error.statusCode = 400;
+      throw error;
+    }
+    updateData.organization_id = await getOrganizationId(updates.organization.trim());
+  }
+
+  return updateData;
+};
+
 // Add debugging middleware
 router.use((req, res, next) => {
   console.log('Users route hit:', req.method, req.path);
@@ -177,27 +210,7 @@ router.put('/:id/profile', authenticate, requireAdmin, async (req, res) => {
       return res.status(400).json({ message: 'At least one profile field is required' });
     }
 
-    const updateData = {};
-    if (Object.prototype.hasOwnProperty.call(updates, 'name')) updateData.name = updates.name;
-    if (Object.prototype.hasOwnProperty.call(updates, 'email')) updateData.email = updates.email;
-    if (Object.prototype.hasOwnProperty.call(updates, 'ethos_training_complete')) {
-      if (typeof updates.ethos_training_complete !== 'boolean') {
-        return res.status(400).json({ message: 'Ethos training status must be a boolean' });
-      }
-      updateData.ethos_training_complete = Boolean(updates.ethos_training_complete);
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'bmw_training_complete')) {
-      if (typeof updates.bmw_training_complete !== 'boolean') {
-        return res.status(400).json({ message: 'BMW training status must be a boolean' });
-      }
-      updateData.bmw_training_complete = Boolean(updates.bmw_training_complete);
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'organization')) {
-      if (!updates.organization || typeof updates.organization !== 'string') {
-        return res.status(400).json({ message: 'Organization is required' });
-      }
-      updateData.organization_id = await getOrganizationId(updates.organization.trim());
-    }
+    const updateData = await buildProfileUpdate(updates);
 
     const [result] = await oldPool.query(
       'UPDATE users SET ? WHERE id = ?',
@@ -211,7 +224,7 @@ router.put('/:id/profile', authenticate, requireAdmin, async (req, res) => {
     res.json({ message: 'User profile updated successfully' });
   } catch (error) {
     console.error('Error updating user profile:', error);
-    res.status(500).json({ message: 'Error updating user profile' });
+    res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : 'Error updating user profile' });
   }
 });
 

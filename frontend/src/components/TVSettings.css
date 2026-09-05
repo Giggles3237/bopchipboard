@@ -37,6 +37,13 @@
   margin-bottom: 16px;
 }
 
+.tvs-section-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 /* Screen cards grid */
 .tvs-screens-grid {
   display: grid;
@@ -94,6 +101,67 @@
   border-radius: 10px;
   padding: 2px 8px;
   white-space: nowrap;
+}
+
+.tvs-advisor-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tvs-link-btn {
+  padding: 7px 12px;
+  background: transparent;
+  color: #0066B1;
+  border: 1px solid rgba(0, 102, 177, 0.35);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tvs-link-btn:hover {
+  border-color: #0066B1;
+  background: rgba(0, 102, 177, 0.06);
+}
+
+.tvs-advisors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.tvs-advisor-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: var(--background-color, #fff);
+}
+
+.tvs-advisor-card:hover,
+.tvs-advisor-card--active {
+  border-color: #0066B1;
+}
+
+.tvs-advisor-card--active {
+  background: rgba(0, 102, 177, 0.06);
+}
+
+.tvs-advisor-name {
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.tvs-advisor-summary {
+  color: #666;
+  font-size: 0.85rem;
+  margin-top: 12px;
 }
 
 /* Rotation slider */
@@ -173,4 +241,14 @@
 
 .tvs-saved-msg a {
   color: #0066B1;
+}
+
+@media (max-width: 560px) {
+  .tvs-section-heading-row {
+    display: block;
+  }
+
+  .tvs-advisor-actions {
+    margin-bottom: 16px;
+  }
 }
