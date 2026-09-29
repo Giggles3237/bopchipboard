@@ -564,3 +564,37 @@ html, body, #root {
     margin: 4px 0;
   }
 }
+
+/* Sale card layout overrides */
+.chips {
+  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 6px 0 18px;
+}
+
+@media (max-width: 768px) {
+  .chips {
+    display: flex;
+    gap: 12px;
+  }
+
+  .chip-component {
+    border-radius: 12px;
+    height: auto;
+    justify-content: flex-start;
+    margin-bottom: 0;
+    padding: 14px;
+    width: 100%;
+  }
+
+  .chip-component::after {
+    content: none;
+  }
+
+  .chip-component.pending,
+  .chip-component.delivered {
+    border-left-width: 2px;
+  }
+}

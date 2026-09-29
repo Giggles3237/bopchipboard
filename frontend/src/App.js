@@ -382,7 +382,11 @@ function App() {
                     </div>
                   </div>
                   <div className="zoom-125">
-                    <ChipTable sales={filteredSales || sales} onEdit={setEditingSale} />
+                    <ChipTable
+                      sales={filteredSales || sales}
+                      onEdit={setEditingSale}
+                      onStatusUpdate={handleSaleUpdate}
+                    />
                   </div>
                   </>
                 </PrivateRoute>

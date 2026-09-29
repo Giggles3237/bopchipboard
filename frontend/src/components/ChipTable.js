@@ -7,7 +7,7 @@ import './ChipTable.css';
 /**
  * ChipTable Component
  */
-function ChipTable({ sales = [], onEdit }) {
+function ChipTable({ sales = [], onEdit, onStatusUpdate }) {
   const { auth } = useAuth();
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -100,6 +100,7 @@ function ChipTable({ sales = [], onEdit }) {
                   key={sale.id}
                   sale={sale}
                   onEdit={() => onEdit(sale)}
+                  onStatusUpdate={onStatusUpdate}
                   isEditable={true}
                 />
               ))}
