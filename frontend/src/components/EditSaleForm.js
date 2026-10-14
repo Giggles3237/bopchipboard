@@ -220,10 +220,9 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
     setIsSendingGetReady(true);
 
     try {
-      const dueDateOptions = { month: 'long', day: 'numeric', year: 'numeric' };
       const dueDate = getReadyData.getReadyDate instanceof Date
-        ? getReadyData.getReadyDate.toLocaleDateString('en-US', dueDateOptions)
-        : new Date(getReadyData.getReadyDate).toLocaleDateString('en-US', dueDateOptions);
+        ? getReadyData.getReadyDate.toLocaleDateString()
+        : new Date(getReadyData.getReadyDate).toLocaleDateString();
       
       const promiseTime = getReadyData.promiseTime || '2:00 PM';
       
