@@ -30,6 +30,7 @@ import SearchUnifiedVehicles from './components/SearchUnifiedVehicles';
 import TVDashboard from './components/TVDashboard';
 import ContestDashboard from './components/ContestDashboard';
 import MarketingPage from './components/MarketingPage';
+import StandaloneGetReady from './components/StandaloneGetReady';
 
 /**
  * App Component
@@ -315,6 +316,12 @@ function App() {
             <Route path="/add-sale" element={
               <PrivateRoute>
                 <AddNewSale />
+              </PrivateRoute>
+            } />
+            <Route path="/get-ready" element={
+              <PrivateRoute roles={['Admin', 'Manager']}>
+                <ViewToggleBar />
+                <StandaloneGetReady />
               </PrivateRoute>
             } />
             <Route path="/admin" element={

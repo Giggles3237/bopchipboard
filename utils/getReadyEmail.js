@@ -121,10 +121,19 @@ function formatItemsNeeded(itemsNeeded) {
   return itemsNeeded.join(', ');
 }
 
+function formatEmailDueBy(value) {
+  // Format only the email display; retain the existing time and integration data.
+  return String(value ?? '').replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?=\s|$)/, (original, month, day, year) => {
+    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    if (date.getUTCFullYear() !== Number(year) || date.getUTCMonth() !== Number(month) - 1 || date.getUTCDate() !== Number(day)) return original;
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  });
+}
+
 function formatGetReadyEmail(data) {
   const {
     getReadyId,
-    dueBy,
+    dueBy: rawDueBy,
     chassis,
     vehicle,
     location,
@@ -135,10 +144,22 @@ function formatGetReadyEmail(data) {
     customerName,
     salesperson,
     submittedBy,
-    escalationUrl
+    escalationUrl,
+    soldUnit = true
   } = data;
 
-  const emailSubject = `${getReadyId}*SOLD UNIT* GET READY - REPLY ALL FOR STATUS UPDATES`;
+  const dueBy = formatEmailDueBy(rawDueBy);
+  const isSoldUnit = soldUnit !== false;
+  const requestLabel = isSoldUnit ? 'Sold Unit Get Ready' : 'Get Ready';
+  const introText = isSoldUnit
+    ? 'This is a Get Ready for a sold unit. Please Reply All to this email with updates to the vehicles status.'
+    : 'This is a Get Ready request. Please Reply All to this email with updates to the vehicle status.';
+  const htmlIntroText = isSoldUnit
+    ? "This is a Get Ready for a sold unit. Please Reply All to this email with updates to the vehicle's status."
+    : 'This is a Get Ready request. Please Reply All to this email with updates to the vehicle status.';
+  const emailSubject = isSoldUnit
+    ? `${getReadyId}*SOLD UNIT* GET READY - REPLY ALL FOR STATUS UPDATES`
+    : `${getReadyId} GET READY - REPLY ALL FOR STATUS UPDATES`;
   const submittedAt = new Date().toLocaleString();
   const htmlFields = {
     getReadyId: escapeHtml(getReadyId),
@@ -158,7 +179,7 @@ function formatGetReadyEmail(data) {
   };
   
   const emailBody = `
-This is a Get Ready for a sold unit. Please Reply All to this email with updates to the vehicles status.
+${introText}
 
 Stock Number: ${getReadyId}
 Due By: ${dueBy}
@@ -195,12 +216,12 @@ ${escalationUrl ? `\nEscalate this Get Ready: ${escalationUrl}` : ''}
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 720px; border-collapse: collapse;">
         <tr>
           <td style="background: #1f2937; color: #ffffff; padding: 18px 20px; font-size: 20px; font-weight: 800;">
-            Sold Unit Get Ready
+            ${requestLabel}
           </td>
         </tr>
         <tr>
           <td style="border: 1px solid #d1d5db; border-top: 0; padding: 18px 20px;">
-            <p style="margin: 0 0 16px;">This is a Get Ready for a sold unit. Please Reply All to this email with updates to the vehicle's status.</p>
+            <p style="margin: 0 0 16px;">${htmlIntroText}</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
               <tr><td style="padding: 7px 0; font-weight: 700; width: 160px;">Stock Number:</td><td style="padding: 7px 0;">${htmlFields.getReadyId}</td></tr>
               <tr><td style="padding: 7px 0; font-weight: 700;">Due By:</td><td style="padding: 7px 0;">${htmlFields.dueBy}</td></tr>
@@ -234,7 +255,7 @@ ${escalationUrl ? `\nEscalate this Get Ready: ${escalationUrl}` : ''}
 function formatEscalationEmail(data) {
   const {
     getReadyId,
-    dueBy,
+    dueBy: rawDueBy,
     chassis,
     vehicle,
     location,
@@ -249,6 +270,7 @@ function formatEscalationEmail(data) {
     escalationComments
   } = data;
 
+  const dueBy = formatEmailDueBy(rawDueBy);
   const stockNumber = getReadyId || 'Unknown stock';
   const subject = `Urgent, ${stockNumber} has been escalated.`;
   const sentAt = new Date().toLocaleString();

@@ -6,6 +6,7 @@ import { AuthContext } from '../contexts/AuthContext';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import ScheduleButton from './ScheduleButton';
+import GetReadyAcknowledgment, { useGetReadyAcknowledgment } from './GetReadyAcknowledgment';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -55,6 +56,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
     getReadyDate: getDayBefore(sale.deliveryDate),
     salespersonEmail: auth?.user?.email || ''
   });
+  const getReadyAcknowledgment = useGetReadyAcknowledgment(getReadyData.getReadyDate, getReadyData.promiseTime);
   const [loanerRequestData, setLoanerRequestData] = useState({
     soldUnit: 'Yes',
     additionalInformation: ''
@@ -212,6 +214,8 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
     if (isSendingGetReady) {
       return;
     }
+
+    if (!getReadyAcknowledgment.canSend()) return;
 
     setIsSendingGetReady(true);
 
@@ -610,6 +614,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
                     />
                   </div>
                   
+                  <GetReadyAcknowledgment acknowledgment={getReadyAcknowledgment} id="sold-get-ready-understood" />
                   <div className="get-ready-buttons">
                     <button 
                       type="button" 

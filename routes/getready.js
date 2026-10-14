@@ -153,8 +153,13 @@ router.post('/send-email', authenticate, async (req, res) => {
       modelName,
       color,
       getReadyDate,
-      promiseTime
+      promiseTime,
+      soldUnit = true
     } = req.body;
+
+    if (soldUnit === false && !['Admin', 'Manager'].includes(req.auth.role)) {
+      return res.status(403).json({ message: 'Manager access required for non-sold-unit Get Ready requests.' });
+    }
 
     // Validate required fields
     if (!getReadyId || !dueBy || !vehicle || !customerName) {
@@ -179,7 +184,8 @@ router.post('/send-email', authenticate, async (req, res) => {
       customerName,
       salesperson: salesperson || req.auth.userName,
       submittedBy: submittedBy || req.auth.userName,
-      salespersonEmail: salespersonEmail || ''
+      salespersonEmail: salespersonEmail || '',
+      soldUnit: soldUnit !== false
     };
 
     const escalationToken = buildEscalationToken(getReadyData, req.auth.email);
@@ -206,6 +212,7 @@ router.post('/send-email', authenticate, async (req, res) => {
       miles: miles || '',
       customerName,
       chassis: chassis || '',
+      sold_unit: soldUnit !== false,
       integration_source: 'bopchipboard'
     });
 

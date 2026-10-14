@@ -77,6 +77,8 @@
 
 .edit-sale-form input[type="text"],
 .edit-sale-form input[type="number"],
+.edit-sale-form input[type="email"],
+.edit-sale-form input[type="time"],
 .edit-sale-form select,
 .react-datepicker-wrapper {
   width: 100%;
@@ -424,6 +426,15 @@
   gap: 8px;
   min-width: 190px;
   min-height: 43px;
+}
+
+.standalone-get-ready-page {
+  padding: 20px;
+}
+
+.standalone-get-ready-page .edit-sale-form {
+  margin: 0 auto;
+  max-height: none;
 }
 
 .send-get-ready-button:hover {

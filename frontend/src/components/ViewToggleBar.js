@@ -82,6 +82,11 @@ const ViewToggleBar = ({ views, selectedView, onViewChange, isCustomView = false
         )}
       </div>
       <div className="right-buttons">
+        {(auth?.user?.role === 'Admin' || auth?.user?.role === 'Manager') && (
+          <Link to="/get-ready" className={location.pathname === '/get-ready' ? 'view-button active' : 'view-button'}>
+            Get Ready
+          </Link>
+        )}
         <Link to="/add-sale" className={location.pathname === '/add-sale' ? 'view-button active' : 'view-button'}>
           Add New Sale
         </Link>
