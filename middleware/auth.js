@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { ADVISOR_ROLES } = require('../roles');
 
 const authenticate = (req, res, next) => {
   try {
@@ -39,9 +40,9 @@ const checkPermission = (permissions) => {
     const hasPermission = permissions.some(permission => {
       switch (permission) {
         case 'add_sales':
-          return ['Manager', 'Salesperson'].includes(userRole);
+          return ADVISOR_ROLES.includes(userRole);
         case 'edit_sales':
-          return ['Manager', 'Salesperson'].includes(userRole);
+          return ADVISOR_ROLES.includes(userRole);
         case 'delete_sales':
           return ['Manager'].includes(userRole);
         case 'view_users':

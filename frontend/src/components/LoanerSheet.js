@@ -26,7 +26,7 @@ function LoanerSheet() {
 
   const userRole = auth?.user?.role || auth?.user?.role_name;
   const isAdmin = userRole === 'Admin';
-  const isSalesperson = userRole === 'Salesperson';
+  const isSalesperson = ['Salesperson', 'Genius'].includes(userRole);
   const canManageLoaners = ['Admin', 'Manager'].includes(userRole);
 
   useEffect(() => {

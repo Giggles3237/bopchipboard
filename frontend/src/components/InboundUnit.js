@@ -2,6 +2,8 @@ import React, { useContext } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
 import './InboundUnit.css';
 
+const SELF_SERVICE_ADVISOR_ROLES = ['Salesperson', 'Genius'];
+
 /**
  * InboundUnit Component
  * 
@@ -23,7 +25,7 @@ const InboundUnit = ({ sale, onEdit }) => {
     if (auth.user.role === 'Admin' || auth.user.role === 'Manager') return true;
     
     // Advisors can only see their own clients
-    if (auth.user.role === 'Salesperson') {
+    if (SELF_SERVICE_ADVISOR_ROLES.includes(auth.user.role)) {
       return sale.advisor === auth.user.name;
     }
     

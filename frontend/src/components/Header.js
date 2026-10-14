@@ -35,7 +35,7 @@ function Header({ isDarkMode, onToggleTheme }) {
             {(auth?.user?.role === 'Admin' || auth?.user?.role === 'Manager') && (
               <Nav.Link as={Link} to="/manager">Manager Dashboard</Nav.Link>
             )}
-            {auth?.user?.role === 'Salesperson' && (
+            {['Salesperson', 'Genius'].includes(auth?.user?.role) && (
               <Nav.Link as={Link} to="/salesperson">Sales Dashboard</Nav.Link>
             )}
           </Nav>

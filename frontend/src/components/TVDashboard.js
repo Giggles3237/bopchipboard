@@ -99,7 +99,7 @@ function TVDashboard() {
         : null;
 
       const salespeople = usersRes.data
-        .filter(u => u.role_name === 'Salesperson' && u.status === 'active')
+        .filter(u => ['Salesperson', 'Genius'].includes(u.role_name) && u.status === 'active')
         .filter(u => !selectedAdvisorSet || selectedAdvisorSet.has(u.name))
         .map(u => u.name);
 

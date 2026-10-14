@@ -5,7 +5,16 @@ const { checkPermission, requireAdmin } = require('../middleware/auth');
 const { oldPool } = require('../db');
 const usersRouter = require('../routes/users');
 
-const ALL_ROLES = ['Admin', 'Manager', 'Salesperson'];
+const ALL_ROLES = ['Admin', 'Manager', 'Salesperson', 'Genius'];
+
+test('Genius can add and edit sales but cannot manage users or delete sales', () => {
+  for (const permission of ['add_sales', 'edit_sales']) {
+    assert.equal(runMiddleware(checkPermission([permission]), 'Genius').nextCalled, true);
+  }
+  for (const permission of ['delete_sales', 'view_users', 'edit_users']) {
+    assert.equal(runMiddleware(checkPermission([permission]), 'Genius').statusCode, 403);
+  }
+});
 const ADMIN_MUTATION_ROUTES = [
   { method: 'put', path: '/:id/profile' },
   { method: 'put', path: '/:id/password' },
@@ -185,16 +194,25 @@ test('sales advisor selector returns active salespeople and managers with form f
       role: 'Manager',
       role_name: 'Manager',
       status: 'active'
+    },
+    {
+      id: 3,
+      name: 'Casey Genius',
+      email: 'casey@example.com',
+      role: 'Genius',
+      role_name: 'Genius',
+      status: 'active'
     }
   ];
 
   try {
-    oldPool.query = async (sql) => {
+    oldPool.query = async (sql, params) => {
       assert.match(sql, /u\.email/);
       assert.match(sql, /r\.name as role/);
       assert.match(sql, /r\.name as role_name/);
-      assert.match(sql, /r\.name IN \('Salesperson', 'Manager'\)/);
+      assert.match(sql, /r\.name IN \(\?, \?, \?\)/);
       assert.match(sql, /u\.status = 'active'/);
+      assert.deepEqual(params, ['Salesperson', 'Manager', 'Genius']);
       return [rows];
     };
 

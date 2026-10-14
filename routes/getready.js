@@ -72,6 +72,49 @@ async function submitToGetReadySystem(payload) {
   }
 }
 
+async function submitToGetReadyExcelFlow(payload) {
+  const url = process.env.GET_READY_EXCEL_FLOW_URL;
+
+  if (!url) {
+    return {
+      ok: false,
+      skipped: true,
+      message: 'Get Ready Excel flow URL is not configured.'
+    };
+  }
+
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  if (process.env.GET_READY_EXCEL_FLOW_KEY) {
+    headers['x-chipboard-key'] = process.env.GET_READY_EXCEL_FLOW_KEY;
+  }
+
+  try {
+    const response = await axios.post(url, payload, {
+      headers,
+      timeout: 15000
+    });
+
+    return {
+      ok: true,
+      status: response.status,
+      data: response.data || null
+    };
+  } catch (error) {
+    console.error('Error submitting Get Ready Excel flow:', error.response?.data || error.message);
+    const responseMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+
+    return {
+      ok: false,
+      status: error.response?.status || null,
+      message: typeof responseMessage === 'string' ? responseMessage : JSON.stringify(responseMessage),
+      details: error.response?.data || null
+    };
+  }
+}
+
 function buildPublicApiBaseUrl(req) {
   if (process.env.BACKEND_PUBLIC_URL) {
     return process.env.BACKEND_PUBLIC_URL.replace(/\/$/, '');
@@ -216,12 +259,39 @@ router.post('/send-email', authenticate, async (req, res) => {
       integration_source: 'bopchipboard'
     });
 
+    const excel = await submitToGetReadyExcelFlow({
+      submittedAt: new Date().toISOString(),
+      submittedBy: getReadyData.submittedBy,
+      submittedByEmail: req.auth.email || '',
+      stockNumber: getReadyData.getReadyId,
+      location: getReadyData.location,
+      customerName: getReadyData.customerName,
+      vehicle: getReadyData.vehicle,
+      year: year || '',
+      make: make || '',
+      model: modelName || '',
+      color: color || '',
+      chassis: getReadyData.chassis,
+      miles: getReadyData.miles,
+      itemsNeeded: getReadyData.itemsNeeded.join(', '),
+      additionalAction: getReadyData.additionalAction,
+      comments: getReadyData.comments,
+      dueBy: getReadyData.dueBy,
+      getReadyDate: getReadyDate || '',
+      promiseTime: promiseTime || '',
+      salesperson: getReadyData.salesperson,
+      salespersonEmail: getReadyData.salespersonEmail,
+      soldUnit: getReadyData.soldUnit ? 'Yes' : 'No',
+      source: 'bopchipboard'
+    });
+
     res.status(200).json({
       message: 'Get Ready email sent successfully',
       data: getReadyData,
       recipients: sendResult?.to || [],
       cc: sendResult?.cc || null,
-      integration
+      integration,
+      excel
     });
 
   } catch (error) {

@@ -16,7 +16,7 @@ function Register() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const roles = ['Admin', 'Manager', 'Salesperson'];
+  const roles = ['Admin', 'Manager', 'Salesperson', 'Genius'];
 
   const handleChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -81,4 +81,4 @@ function Register() {
   );
 }
 
-export default Register; 
+export default Register;

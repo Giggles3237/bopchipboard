@@ -64,7 +64,7 @@ function SalespersonDashboard() {
             headers: { Authorization: `Bearer ${auth.token}` }
           });
           const salespeople = response.data
-            .filter(user => user.role_name === 'Salesperson')
+            .filter(user => ['Salesperson', 'Genius'].includes(user.role_name))
             .map(user => user.name);
           setAdvisorList(salespeople);
         } catch (error) {
@@ -417,4 +417,4 @@ function SalespersonDashboard() {
   );
 }
 
-export default SalespersonDashboard; 
+export default SalespersonDashboard;

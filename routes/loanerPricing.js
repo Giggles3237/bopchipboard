@@ -65,7 +65,7 @@ router.get('/sheet', authenticate, async (req, res) => {
     const staleRates = Boolean(
       updatedAt && sheet.meta.generatedAt
       && new Date(updatedAt) > new Date(sheet.meta.generatedAt));
-    const html = req.auth.role === 'Salesperson'
+    const html = ['Salesperson', 'Genius'].includes(req.auth.role)
       ? primaryTableOnly(sheet.html)
       : sheet.html;
     res.json({ html, meta: sheet.meta, staleRates });

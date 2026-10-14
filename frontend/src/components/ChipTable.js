@@ -4,6 +4,8 @@ import Totals from './Totals';
 import Chip from './Chip';
 import './ChipTable.css';
 
+const SELF_SERVICE_ADVISOR_ROLES = ['Salesperson', 'Genius'];
+
 /**
  * ChipTable Component
  */
@@ -53,8 +55,8 @@ function ChipTable({ sales = [], onEdit, onStatusUpdate }) {
     }, {});
 
     return Object.values(advisorStats).sort((a, b) => {
-      // If user is a salesperson, put them at the top
-      if (auth?.user?.role === 'Salesperson') {
+      // If user is an advisor, put them at the top
+      if (SELF_SERVICE_ADVISOR_ROLES.includes(auth?.user?.role)) {
         if (a.isCurrentUser) return -1;
         if (b.isCurrentUser) return 1;
       }

@@ -9,6 +9,7 @@ import ScheduleButton from './ScheduleButton';
 import GetReadyAcknowledgment, { useGetReadyAcknowledgment } from './GetReadyAcknowledgment';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const SELF_SERVICE_ADVISOR_ROLES = ['Salesperson', 'Genius'];
 
 const toDateOnly = (value) => {
   if (!value) {
@@ -85,7 +86,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
     deliveryDate: sale.deliveryDate instanceof Date 
       ? sale.deliveryDate.toISOString().split('T')[0]
       : new Date(sale.deliveryDate).toISOString().split('T')[0],
-    advisor: sale.advisor || (auth?.user?.role === 'Salesperson' ? auth.user.name : '')
+    advisor: sale.advisor || (SELF_SERVICE_ADVISOR_ROLES.includes(auth?.user?.role) ? auth.user.name : '')
   });
 
   // Add console logs to debug
@@ -103,7 +104,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
 
   // Add validation check at the start of component
   useEffect(() => {
-    if (auth?.user?.role === 'Salesperson' && sale.advisor && sale.advisor !== auth.user.name) {
+    if (SELF_SERVICE_ADVISOR_ROLES.includes(auth?.user?.role) && sale.advisor && sale.advisor !== auth.user.name) {
       alert('You can only edit your own sales.');
       onCancel();
     }
@@ -143,7 +144,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
     e.preventDefault();
     console.log('EditSaleForm: Starting form submission');
     
-    if (auth?.user?.role === 'Salesperson' && sale.advisor && sale.advisor !== auth.user.name) {
+    if (SELF_SERVICE_ADVISOR_ROLES.includes(auth?.user?.role) && sale.advisor && sale.advisor !== auth.user.name) {
       alert('You can only edit your own sales.');
       return;
     }
@@ -263,7 +264,10 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
         const integrationNote = response?.data?.integration?.ok === false
           ? `\nGet Ready system warning: ${response.data.integration.message || 'submission failed'}`
           : '\nGet Ready was also added to the new tracking system.';
-        alert(`Get Ready email sent successfully!\nSent to: ${sentTo.join(', ') || 'N/A'}${cc}${integrationNote}`);
+        const excelNote = response?.data?.excel?.ok === false && !response.data.excel.skipped
+          ? '\nExcel update failed. The email was sent; contact a manager about the Excel entry.'
+          : '';
+        alert(`Get Ready email sent successfully!\nSent to: ${sentTo.join(', ') || 'N/A'}${cc}${integrationNote}${excelNote}`);
         setShowGetReady(false);
       }
     } catch (error) {
@@ -441,7 +445,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
               required
             >
               <option value="">Select Advisor</option>
-              {auth?.user?.role === 'Salesperson' ? (
+              {SELF_SERVICE_ADVISOR_ROLES.includes(auth?.user?.role) ? (
                 <option value={auth.user.name}>{auth.user.name}</option>
               ) : (
                 <>

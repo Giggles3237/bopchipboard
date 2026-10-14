@@ -8,6 +8,8 @@ import TrainingBadges from './TrainingBadges';
 import TrainingManagement from './TrainingManagement';
 import TVSettings from './TVSettings';
 
+const USER_ROLES = ['Admin', 'Manager', 'Salesperson', 'Genius'];
+
 function AdminDashboard() {
     const [activeTab, setActiveTab] = useState('users'); // 'users', 'training', or 'tv'
     const [users, setUsers] = useState([]);
@@ -509,9 +511,9 @@ function AdminDashboard() {
                                     required
                                 >
                                     <option value="">Select a role</option>
-                                    <option value="Admin">Admin</option>
-                                    <option value="Manager">Manager</option>
-                                    <option value="Salesperson">Salesperson</option>
+                                    {USER_ROLES.map(role => (
+                                        <option key={role} value={role}>{role}</option>
+                                    ))}
                                 </select>
                             </div>
 

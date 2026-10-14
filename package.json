@@ -10,7 +10,8 @@
   "scripts": {
     "build": "npm --prefix frontend install && npm --prefix frontend run build && node -e \"const fs=require('fs');fs.rmSync('build',{recursive:true,force:true});fs.cpSync('frontend/build','build',{recursive:true});\"",
     "test": "node --test tests/*.test.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate:add-genius-role": "node scripts/add-genius-role.js"
   },
   "keywords": [],
   "author": "",

@@ -128,14 +128,14 @@ function ManagerDashboard() {
     });
   }, [teamMembers]);
 
-  // Fetch team members (only active salespeople)
+  // Fetch team members (only active advisors)
   const fetchTeamMembers = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/users`, {
         headers: { Authorization: `Bearer ${auth.token}` }
       });
-      const activeSalespeople = response.data.filter(user => 
-        user.role_name === 'Salesperson' && user.status === 'active'
+      const activeSalespeople = response.data.filter(user =>
+        ['Salesperson', 'Genius'].includes(user.role_name) && user.status === 'active'
       );
       setTeamMembers(activeSalespeople);
     } catch (error) {
@@ -532,4 +532,4 @@ function ManagerDashboard() {
   );
 }
 
-export default ManagerDashboard; 
+export default ManagerDashboard;

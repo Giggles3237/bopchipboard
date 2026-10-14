@@ -117,7 +117,10 @@ function StandaloneGetReady() {
       const integrationNote = response?.data?.integration?.ok === false
         ? `\nGet Ready system warning: ${response.data.integration.message || 'submission failed'}`
         : '\nGet Ready was also added to the new tracking system.';
-      alert(`Get Ready sent successfully.\nSent to: ${sentTo.join(', ') || 'N/A'}${cc}${integrationNote}`);
+      const excelNote = response?.data?.excel?.ok === false && !response.data.excel.skipped
+        ? '\nExcel update failed. The email was sent; contact a manager about the Excel entry.'
+        : '';
+      alert(`Get Ready sent successfully.\nSent to: ${sentTo.join(', ') || 'N/A'}${cc}${integrationNote}${excelNote}`);
       setFormData((prevData) => ({
         ...prevData,
         stockNumber: '',

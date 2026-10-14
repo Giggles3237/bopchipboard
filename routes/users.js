@@ -3,6 +3,7 @@ const router = express.Router();
 const { authenticate, checkPermission, requireAdmin } = require('../middleware/auth');
 const { oldPool } = require('../db');
 const bcrypt = require('bcrypt');
+const { VALID_ROLES, ADVISOR_ROLES } = require('../roles');
 
 const PROFILE_FIELDS = [
   'name',
@@ -12,7 +13,6 @@ const PROFILE_FIELDS = [
   'bmw_training_complete'
 ];
 const CREATE_FIELDS = [...PROFILE_FIELDS, 'password', 'role', 'status'];
-const VALID_ROLES = ['Admin', 'Manager', 'Salesperson'];
 const VALID_STATUSES = ['active', 'inactive'];
 
 const hasOnlyFields = (body, allowedFields) =>
@@ -176,14 +176,15 @@ router.get('/', authenticate, checkPermission(['view_users']), async (req, res) 
 // Get active salespeople
 router.get('/salespeople', authenticate, async (req, res) => {
   try {
+    const placeholders = ADVISOR_ROLES.map(() => '?').join(', ');
     const [results] = await oldPool.query(`
       SELECT u.id, u.name, u.email 
       FROM users u
       JOIN roles r ON u.role_id = r.id
-      WHERE r.name = 'Salesperson'
+      WHERE r.name IN (${placeholders})
       AND u.status = 'active'
       ORDER BY u.name ASC
-    `);
+    `, ADVISOR_ROLES);
 
     console.log('Salespeople query results:', results);
     res.json(results);
@@ -432,6 +433,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 // Get active users who can be selected as advisors when adding or editing sales.
 router.get('/salespeople-and-managers', authenticate, async (req, res) => {
   try {
+    const placeholders = ADVISOR_ROLES.map(() => '?').join(', ');
     const [users] = await oldPool.query(`
       SELECT
         u.id,
@@ -442,10 +444,10 @@ router.get('/salespeople-and-managers', authenticate, async (req, res) => {
         u.status
       FROM users u
       JOIN roles r ON u.role_id = r.id
-      WHERE r.name IN ('Salesperson', 'Manager') 
+      WHERE r.name IN (${placeholders})
       AND u.status = 'active'
       ORDER BY u.name ASC
-    `);
+    `, ADVISOR_ROLES);
     res.json(users);
   } catch (error) {
     console.error('Error fetching salespeople and managers:', error);

@@ -46,8 +46,9 @@ function buildGetReadyTeamsMessage(getReadyData = {}) {
   const dueBy = compactValue(getReadyData.dueBy, 'No due date');
   const salesperson = compactValue(getReadyData.salesperson, 'No salesperson');
   const customerName = compactValue(getReadyData.customerName, 'No customer');
+  const requestLabel = getReadyData.soldUnit === false ? 'Get Ready' : 'Sold unit Get Ready';
 
-  return `Get Ready submitted: ${stockNumber} - ${vehicle} for ${customerName}. Due by: ${dueBy}. Salesperson: ${salesperson}.`;
+  return `${requestLabel} submitted: ${stockNumber} - ${vehicle} for ${customerName}. Due by: ${dueBy}. Salesperson: ${salesperson}.`;
 }
 
 function buildTeamsMessageFields(title, message) {
@@ -222,12 +223,16 @@ async function sendGetReadyWebhook(getReadyData = {}) {
       return false;
     }
 
+    const title = getReadyData.soldUnit === false
+      ? 'Get Ready Submitted - ChipBoard Bot'
+      : 'Sold Unit Get Ready Submitted - ChipBoard Bot';
+
     const body = [
       {
         type: 'TextBlock',
         size: 'Large',
         weight: 'Bolder',
-        text: 'Get Ready Submitted - ChipBoard Bot'
+        text: title
       },
       {
         type: 'TextBlock',
@@ -280,7 +285,7 @@ async function sendGetReadyWebhook(getReadyData = {}) {
     const teamsMessage = buildGetReadyTeamsMessage(getReadyData);
 
     const payload = {
-      ...buildTeamsMessageFields('Get Ready Submitted - ChipBoard Bot', teamsMessage),
+      ...buildTeamsMessageFields(title, teamsMessage),
       attachments: [
         {
           contentType: 'application/vnd.microsoft.card.adaptive',
