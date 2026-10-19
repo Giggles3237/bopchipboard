@@ -29,7 +29,10 @@ test('manager standalone Get Ready is not marked as sold unit', () => {
     soldUnit: false
   });
 
-  assert.equal(email.subject, 'PB5678 GET READY - REPLY ALL FOR STATUS UPDATES');
+  assert.equal(email.subject, 'PB5678*INVENTORY UNIT* GET READY - REPLY ALL FOR STATUS UPDATES');
+  assert.match(email.body, /inventory unit/i);
+  assert.match(email.html, /Inventory Unit Get Ready/);
+  assert.match(email.html, /background: #0066b1/);
   assert.doesNotMatch(email.body, /sold unit/i);
   assert.doesNotMatch(email.html, /Sold Unit Get Ready/);
 });

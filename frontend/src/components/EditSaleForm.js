@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import './EditSaleForm.css';
@@ -40,10 +40,11 @@ const isBeforeToday = (value) => {
   return toDateOnly(value) < today;
 };
 
-function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
+function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = false }) {
   const { auth } = useContext(AuthContext);
+  const formRef = useRef(null);
   const [salespeople, setSalespeople] = useState([]);
-  const [showGetReady, setShowGetReady] = useState(false);
+  const [showGetReady, setShowGetReady] = useState(inventoryOnly);
   const [showLoanerRequest, setShowLoanerRequest] = useState(false);
   const [isSendingGetReady, setIsSendingGetReady] = useState(false);
   const [getReadyDateManuallyChanged, setGetReadyDateManuallyChanged] = useState(false);
@@ -54,7 +55,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
     comments: '',
     promiseTime: '14:00',
     // Store as Date object to avoid timezone issues in the DatePicker
-    getReadyDate: getDayBefore(sale.deliveryDate),
+    getReadyDate: inventoryOnly ? toDateOnly(new Date()) : getDayBefore(sale.deliveryDate),
     salespersonEmail: auth?.user?.email || ''
   });
   const getReadyAcknowledgment = useGetReadyAcknowledgment(getReadyData.getReadyDate, getReadyData.promiseTime);
@@ -142,6 +143,10 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (inventoryOnly) {
+      await handleSendGetReady();
+      return;
+    }
     console.log('EditSaleForm: Starting form submission');
     
     if (SELF_SERVICE_ADVISOR_ROLES.includes(auth?.user?.role) && sale.advisor && sale.advisor !== auth.user.name) {
@@ -216,6 +221,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
       return;
     }
 
+    if (inventoryOnly && !formRef.current.reportValidity()) return;
     if (!getReadyAcknowledgment.canSend()) return;
 
     setIsSendingGetReady(true);
@@ -248,7 +254,8 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
         getReadyDate: getReadyData.getReadyDate instanceof Date
           ? getReadyData.getReadyDate.toISOString().split('T')[0]
           : new Date(getReadyData.getReadyDate).toISOString().split('T')[0],
-        promiseTime: getReadyData.promiseTime || '14:00'
+        promiseTime: getReadyData.promiseTime || '14:00',
+        soldUnit: !inventoryOnly
       };
 
       const response = await axios.post(`${API_BASE_URL}/getready/send-email`, getReadyEmailData, {
@@ -268,7 +275,8 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
           ? '\nExcel update failed. The email was sent; contact a manager about the Excel entry.'
           : '';
         alert(`Get Ready email sent successfully!\nSent to: ${sentTo.join(', ') || 'N/A'}${cc}${integrationNote}${excelNote}`);
-        setShowGetReady(false);
+        if (inventoryOnly) onCancel();
+        else setShowGetReady(false);
       }
     } catch (error) {
       console.error('Error sending Get Ready email:', error);
@@ -367,9 +375,9 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
   return (
     <div className="edit-sale-form-overlay">
       <div className="edit-sale-form">
-        <h2>{sale.id ? 'Edit Sale' : 'Add New Sale'}</h2>
-        <form onSubmit={handleSubmit}>
-          <div>
+        <h2>{inventoryOnly ? 'Get Ready Only — Inventory Unit' : (sale.id ? 'Edit Sale' : 'Add New Sale')}</h2>
+        <form ref={formRef} onSubmit={handleSubmit}>
+          {!inventoryOnly && <div>
             <label htmlFor="clientName">Client Name:</label>
             <input
               type="text"
@@ -379,7 +387,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
               onChange={handleChange}
               required
             />
-          </div>
+          </div>}
           <div>
             <label htmlFor="stockNumber">Stock Number:</label>
             <input
@@ -459,6 +467,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
               )}
             </select>
           </div>
+          {!inventoryOnly && <>
           <div>
             <label htmlFor="delivered">Delivered:</label>
             <input
@@ -497,9 +506,17 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
             </select>
           </div>
 
+          </>}
+
+          {inventoryOnly && <div>
+            <label htmlFor="chassis">Chassis:</label>
+            <input id="chassis" name="chassis" value={formData.chassis || ''} onChange={handleChange} />
+          </div>}
+
           {/* Get Ready Section */}
           {!formData.delivered && (
             <div className="get-ready-section">
+              {!inventoryOnly && <>
               <button
                 type="button"
                 className="toggle-loaner-request-button"
@@ -522,6 +539,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
                 advisorEmail={salespeople.find(person => person.name === formData.advisor)?.email || auth?.user?.email || ''}
               />
               
+              </>}
               {showGetReady && (
                 <div className="get-ready-fields">
                   <div>
@@ -722,7 +740,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete }) {
           )}
 
           <div className="form-buttons">
-            <button type="submit" className="save-button">Save Changes</button>
+            {!inventoryOnly && <button type="submit" className="save-button">Save Changes</button>}
             {sale.id && !formData.delivered && ( // Only show delete button for existing, undelivered sales
               <button 
                 type="button" 

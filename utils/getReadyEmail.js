@@ -150,16 +150,16 @@ function formatGetReadyEmail(data) {
 
   const dueBy = formatEmailDueBy(rawDueBy);
   const isSoldUnit = soldUnit !== false;
-  const requestLabel = isSoldUnit ? 'Sold Unit Get Ready' : 'Get Ready';
+  const requestLabel = isSoldUnit ? 'Sold Unit Get Ready' : 'Inventory Unit Get Ready';
   const introText = isSoldUnit
     ? 'This is a Get Ready for a sold unit. Please Reply All to this email with updates to the vehicles status.'
-    : 'This is a Get Ready request. Please Reply All to this email with updates to the vehicle status.';
+    : 'This is a Get Ready for an inventory unit. Please Reply All to this email with updates to the vehicle status.';
   const htmlIntroText = isSoldUnit
     ? "This is a Get Ready for a sold unit. Please Reply All to this email with updates to the vehicle's status."
-    : 'This is a Get Ready request. Please Reply All to this email with updates to the vehicle status.';
+    : 'This is a Get Ready for an inventory unit. Please Reply All to this email with updates to the vehicle status.';
   const emailSubject = isSoldUnit
     ? `${getReadyId}*SOLD UNIT* GET READY - REPLY ALL FOR STATUS UPDATES`
-    : `${getReadyId} GET READY - REPLY ALL FOR STATUS UPDATES`;
+    : `${getReadyId}*INVENTORY UNIT* GET READY - REPLY ALL FOR STATUS UPDATES`;
   const submittedAt = new Date().toLocaleString();
   const htmlFields = {
     getReadyId: escapeHtml(getReadyId),
@@ -215,7 +215,7 @@ ${escalationUrl ? `\nEscalate this Get Ready: ${escalationUrl}` : ''}
     <div style="font-family: Arial, Helvetica, sans-serif; color: #111827; line-height: 1.45;">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 720px; border-collapse: collapse;">
         <tr>
-          <td style="background: #1f2937; color: #ffffff; padding: 18px 20px; font-size: 20px; font-weight: 800;">
+          <td style="background: ${isSoldUnit ? '#1f2937' : '#0066b1'}; color: #ffffff; padding: 18px 20px; font-size: 20px; font-weight: 800;">
             ${requestLabel}
           </td>
         </tr>
