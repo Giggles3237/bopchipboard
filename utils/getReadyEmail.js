@@ -548,6 +548,7 @@ async function addRowToExcelViaGetReadyEmail(values, recipients = []) {
 }
 
 module.exports = { 
+  buildEmailConfig,
   sendGetReadyEmail,
   sendGetReadyEscalationEmail,
   addRowToExcelViaGetReadyEmail,

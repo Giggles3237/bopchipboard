@@ -66,3 +66,13 @@ Native MySQL validation is blocked by unavailable tooling: no MySQL/MariaDB serv
 ## Deliverables
 
 The ZIP contains both patches (including new files), this note, HTML/plain-text email previews, desktop/mobile email screenshots, earlier mock workflow screenshot and checksum manifest. No local env files, credentials, databases, dependencies or build directories are included. Library delivery status is reported separately after upload inspection.
+
+## Merge-readiness update, October 21
+
+User authorized merges and subsequently live sending using the existing Chipboard sender. Loaner routes now require LOANER_WORKFLOW_ENABLED=true and a read-only required-column schema probe. Until ready they return a controlled 503 without writing or sending; existing unrelated routes/startup are unaffected. The prior Microsoft request endpoint is replaced, not silently retained as an approval fallback.
+
+Loaner sending now uses a dedicated Nodemailer adapter sharing buildEmailConfig with Get Ready, but not its recipients or formatter. LOANER_EMAIL_ENABLED defaults off and requires EMAIL_USER=chipboard.bot@gmail.com. The old LOANER_APPROVAL_FLOW_READY setting is no longer consulted by loaner routes. SMTP partial acceptance is held uncertain; no automatic resend. Deterministic Message-ID assists reconciliation but is not claimed as SMTP deduplication.
+
+Read-only readiness attempts using existing local credentials failed: Azure MySQL sales-db.mysql.database.azure.com / sales-db returned ER_ACCESS_DENIED_ERROR; Gmail SMTP verify returned EAUTH/535. No table access, migration or mail send occurred. Production config is not proven by these local settings. No Heroku CLI/connector was available to inspect current production credentials/release. Restore working existing access through the normal private configuration mechanism before enabling either gate. No new credentials were created.
+
+Migration planned impact remains one additive InnoDB table with a primary key and queue index, no alterations to existing tables or data. Production table presence/version and backup/recovery availability could not be inspected due to denied DB authentication; migration remains unexecuted and requires that safety review/approval. Native MySQL validation remains unavailable locally.
