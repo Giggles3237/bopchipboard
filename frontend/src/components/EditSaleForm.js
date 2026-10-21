@@ -295,6 +295,10 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
   const [isSubmittingLoaner, setIsSubmittingLoaner] = useState(false);
   const handleSubmitLoanerRequest = async () => {
     if (isSubmittingLoaner) return;
+    if (!formData.stockNumber?.trim() || !formData.clientName?.trim() || !loanerRequestData.additionalInformation.trim()) {
+      alert('Stock number, client name, and loaner request notes are required.');
+      return;
+    }
     setIsSubmittingLoaner(true);
     try {
       const advisorEmail = salespeople.find(person => person.name === formData.advisor)?.email || auth?.user?.email || '';
@@ -304,8 +308,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
         clientName: formData.clientName,
         soldUnit: loanerRequestData.soldUnit,
         additionalInformation: loanerRequestData.additionalInformation,
-        clientAdvisorEmail: advisorEmail,
-        respondersEmail: auth?.user?.email || ''
+        clientAdvisorEmail: advisorEmail
       };
 
       sessionStorage.setItem(loanerDraftKey, loanerPayload.requestId);
@@ -523,7 +526,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
           </div>}
 
           {/* Get Ready Section */}
-          {!formData.delivered && (
+          {(!formData.delivered || !inventoryOnly) && (
             <div className="get-ready-section">
               {!inventoryOnly && <>
               <button
@@ -533,6 +536,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
               >
                 Loaner Request
               </button>
+              {!formData.delivered && <>
               <button 
                 type="button" 
                 className="toggle-get-ready-button"
@@ -547,9 +551,9 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
                 advisorName={formData.advisor}
                 advisorEmail={salespeople.find(person => person.name === formData.advisor)?.email || auth?.user?.email || ''}
               />
-              
               </>}
-              {showGetReady && (
+              </>}
+              {showGetReady && !formData.delivered && (
                 <div className="get-ready-fields">
                   <div>
                     <label htmlFor="getReadyLocation">Location:</label>
@@ -743,6 +747,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
                     >
                       Submit Loaner Request
                     </button>
+                    <button type="button" onClick={() => setShowLoanerRequest(false)} disabled={isSubmittingLoaner}>Cancel Loaner Request</button>
                   </div>
                 </div>
               )}
