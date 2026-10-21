@@ -35,6 +35,8 @@ export default function LoanerRequests() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [refreshRequired, setRefreshRequired] = useState(false);
+  const sendInFlight = useRef(false);
   const [form, setForm] = useState({ stockNumber: '', clientName: '', soldUnit: 'Yes', additionalInformation: '', clientAdvisorEmail: auth?.user?.email || '' });
   const requestId = useRef(null);
   // Persist the exact attempted payload so response loss/page reload can be retried safely.
@@ -42,19 +44,36 @@ export default function LoanerRequests() {
   const options = { headers: { Authorization: `Bearer ${auth.token}` } };
   const load = async () => {
     const [requests, fees] = await Promise.all([axios.get(`${API_BASE_URL}/loaners/requests`, options), axios.get(`${API_BASE_URL}/loaners/cpo-fees`, options)]);
-    setRows(requests.data); setRates(fees.data);
+    setRows(requests.data); setRates(fees.data); setRefreshRequired(false);
   };
   useEffect(() => {
     const saved = sessionStorage.getItem(storageKey);
     if (saved) { try { const draft = JSON.parse(saved); requestId.current = draft.requestId; setForm(draft); } catch (_) { /* retain a fresh form */ } }
-    load().catch(e => setError(e.response?.data?.message || 'Unable to load requests.'));
+    load().catch(e => { setRefreshRequired(true); setError(e.response?.data?.message || 'Unable to load requests.'); });
     // Refresh explicitly after actions; authentication change remounts this view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const act = async action => {
     setBusy(true); setError(''); setNotice('');
-    try { await action(); await load(); } catch (e) { setError(e.response?.data?.message || 'Request failed. Retry preserves the request ID.'); }
+    try { await action(); await load(); } catch (e) { setRefreshRequired(true); setError(e.response?.data?.message || 'Unable to confirm current request state. Refresh before taking another action.'); }
     finally { setBusy(false); }
+  };
+  const sendQueued = async id => {
+    if (sendInFlight.current || refreshRequired) return;
+    sendInFlight.current = true; setBusy(true); setError(''); setNotice('Checking and sending the queued email…'); setRefreshRequired(true);
+    try {
+      const { data: row } = await axios.post(`${API_BASE_URL}/loaners/requests/${id}/retry-email`, {}, options);
+      setRows(previous => previous.map(item => item.id === row.id ? row : item));
+      if (row.email_state === 'accepted') setNotice('Email accepted by the mail server. Mailbox delivery is not confirmed.');
+      else if (row.email_state === 'queued') setNotice(row.emailReadiness?.ready === false ? `No email attempted. ${row.emailReadiness.message}` : 'Email remains queued. Refresh to confirm its current state before sending.');
+      else setNotice('Email outcome needs reconciliation. Do not resend or resubmit this request.');
+      try { await load(); }
+      catch (_) { setRefreshRequired(true); setError('The action returned, but refreshing failed. Refresh successfully before taking another send action.'); }
+    } catch (e) {
+      setNotice('');
+      setError(`${e.response?.data?.message || 'No reliable send response was received.'} Refresh to check the saved email state. Do not resubmit or resend an uncertain email.`);
+      // Keep sending disabled until an explicit successful read; never replay the POST.
+    } finally { sendInFlight.current = false; setBusy(false); }
   };
   const submit = e => {
     e.preventDefault();
@@ -86,9 +105,10 @@ export default function LoanerRequests() {
       {row.approval_json && <p>Pulled: {row.approval_json.pulledStockNumber}; replacement: {row.approval_json.replacementStockNumber}; CPO: {row.approval_json.cpo.enabled ? 'Yes' : 'No'}; cost: ${row.approval_json.cpo.cost}. Approved by {row.approval_json.approverName || row.approval_json.approvedBy} at {row.approval_json.approvedAt}.</p>}
       {row.email_state === 'accepted' && <p>Email transport accepted this request; mailbox delivery has not been independently verified.</p>}
       {['sending', 'uncertain'].includes(row.email_state) && <p>Email delivery needs transport reconciliation. Do not resubmit this request or resend the email.</p>}
-      {row.email_state === 'queued' && <p>Approved and saved; email is queued until the email-only transport is verified and enabled.</p>}
+      {row.email_state === 'queued' && <p>Approved and saved; no send attempt has been claimed.</p>}
+      {admin && row.email_state === 'queued' && row.emailReadiness && <p role={row.emailReadiness.ready ? 'status' : 'alert'}>{row.emailReadiness.message}</p>}
       {admin && row.state === 'pending' && rates && <ApprovalForm row={row} rates={rates} busy={busy} onApprove={(id, payload) => act(async () => { await axios.post(`${API_BASE_URL}/loaners/requests/${id}/approve`, payload, options); setNotice('Approval saved. Check email status below.'); })} />}
-      {admin && row.email_state === 'queued' && <button disabled={busy} onClick={() => act(() => axios.post(`${API_BASE_URL}/loaners/requests/${row.id}/retry-email`, {}, options))}>Send queued email</button>}
+      {admin && row.email_state === 'queued' && <button disabled={busy || refreshRequired || row.emailReadiness?.ready === false} onClick={() => sendQueued(row.id)}>{busy ? 'Working…' : 'Send queued email'}</button>}
     </section>)}
   </main>;
 }

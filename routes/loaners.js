@@ -3,7 +3,7 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 const { oldPool } = require('../db');
 const { createLoanerRequestStore } = require('../lib/loanerRequestStore');
 const { createLoanerRequests } = require('../services/loanerRequests');
-const { sendLoanerEmail, loanerEmailReady } = require('../utils/loanerEmailTransport');
+const { sendLoanerEmail, loanerEmailReady, loanerEmailReadiness } = require('../utils/loanerEmailTransport');
 const { createLoanerReadiness } = require('../middleware/loanerReadiness');
 const rates = require('../seed/cpo-fees.json');
 const store = createLoanerRequestStore(oldPool);
@@ -11,6 +11,11 @@ const service = createLoanerRequests({ store, send: sendLoanerEmail,
   transportReady: loanerEmailReady });
 const router = express.Router();
 const loanerReady = createLoanerReadiness(oldPool);
+function presentLoaner(row, user) {
+  const { email_payload, ...visible } = row;
+  if (user.role === 'Admin' && row.email_state === 'queued') visible.emailReadiness = loanerEmailReadiness();
+  return visible;
+}
 const handle = fn => async (req, res) => {
   try { await fn(req, res); }
   catch (error) {
@@ -33,18 +38,18 @@ router.get('/test', (req, res) => res.json({ message: 'Loaner request router is 
 router.get('/cpo-fees', authenticate, (req, res) => res.json(rates));
 router.get('/requests', authenticate, currentLoanerUser, loanerReady, handle(async (req, res) => {
   const rows = await store.list(req.auth);
-  res.json(rows.map(({ email_payload, ...row }) => row));
+  res.json(rows.map(row => presentLoaner(row, req.auth)));
 }));
 router.post('/request', authenticate, currentLoanerUser, loanerReady, handle(async (req, res) => {
   const row = await service.submit(req.body, req.auth);
   res.status(200).json({ message: 'Loaner request saved for admin approval', id: row.id, state: row.state });
 }));
 router.post('/requests/:id/approve', authenticate, currentLoanerUser, requireAdmin, loanerReady, handle(async (req, res) => {
-  const { email_payload, ...row } = await service.approve(req.params.id, req.body, req.auth);
-  res.json(row);
+  const row = await service.approve(req.params.id, req.body, req.auth);
+  res.json(presentLoaner(row, req.auth));
 }));
 router.post('/requests/:id/retry-email', authenticate, currentLoanerUser, requireAdmin, loanerReady, handle(async (req, res) => {
-  const { email_payload, ...row } = await service.retry(req.params.id, req.auth);
-  res.json(row);
+  const row = await service.retry(req.params.id, req.auth);
+  res.json(presentLoaner(row, req.auth));
 }));
 module.exports = router;

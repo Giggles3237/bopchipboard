@@ -42,3 +42,24 @@ test('admin readiness diagnostics distinguish missing schema from access failure
     assert.ok(!body.message.includes(code)); assert.ok(!body.message.includes(expected));
   }
 });
+
+test('readiness safely identifies each preflight blocker without returning configured values', () => {
+  const { loanerEmailReadiness } = require('../utils/loanerEmailTransport');
+  const configured={LOANER_EMAIL_ENABLED:'true',EMAIL_USER:'chipboard.bot@gmail.com',EMAIL_PASSWORD:'private-secret'};
+  for(const [env,code] of [[{...configured,LOANER_EMAIL_ENABLED:'false'},'EMAIL_DISABLED'],[{...configured,EMAIL_USER:'private-other@example.com'},'SENDER_MISMATCH'],[{...configured,EMAIL_PASSWORD:''},'PASSWORD_MISSING'],[configured,'CONFIGURED']]) {
+    const result=loanerEmailReadiness(env);assert.equal(result.code,code);assert.equal(result.ready,code==='CONFIGURED');
+    assert.ok(!JSON.stringify(result).includes('private-secret'));assert.ok(!JSON.stringify(result).includes('private-other'));
+  }
+});
+test('existing request read exposes readiness only to admins and never performs a send', async () => {
+  const router=require('../routes/loaners');const {oldPool}=require('../db');const original=oldPool.execute;
+  const handler=router.stack.find(x=>x.route?.path==='/requests').route.stack.at(-1).handle;
+  const row={id:'id',submitted_by:'1',email_state:'queued',request_json:{},approval_json:{},email_payload:{secret:'private'}};
+  try {
+    oldPool.execute=async sql=>{assert.match(sql,/^SELECT/);return [sql.startsWith('SELECT id')?[{id:'id'}]:[row]];};
+    for(const role of ['Admin','Salesperson']) {
+      let result;await handler({auth:{role,userId:1}},{json(x){result=x;},status(){return this;}});
+      assert.equal(Boolean(result[0].emailReadiness),role==='Admin');assert.equal(result[0].email_payload,undefined);
+    }
+  } finally {oldPool.execute=original;}
+});

@@ -1,9 +1,12 @@
 const nodemailer = require('nodemailer');
 const { buildEmailConfig } = require('./getReadyEmail');
-function loanerEmailReady() {
-  return process.env.LOANER_EMAIL_ENABLED === 'true' &&
-    process.env.EMAIL_USER === 'chipboard.bot@gmail.com' && Boolean(process.env.EMAIL_PASSWORD);
+function loanerEmailReadiness(env = process.env) {
+  if (env.LOANER_EMAIL_ENABLED !== 'true') return { ready: false, code: 'EMAIL_DISABLED', message: 'Email sending is disabled. Set LOANER_EMAIL_ENABLED to true in the backend configuration.' };
+  if (env.EMAIL_USER !== 'chipboard.bot@gmail.com') return { ready: false, code: 'SENDER_MISMATCH', message: 'The configured sender does not match chipboard.bot@gmail.com. Verify EMAIL_USER in the backend configuration.' };
+  if (!env.EMAIL_PASSWORD) return { ready: false, code: 'PASSWORD_MISSING', message: 'The backend EMAIL_PASSWORD setting is missing. Restore the existing SMTP credential privately; do not paste it here.' };
+  return { ready: true, code: 'CONFIGURED', message: 'Email settings are present. SMTP authentication and mailbox delivery are not yet verified.' };
 }
+function loanerEmailReady() { return loanerEmailReadiness().ready; }
 function createLoanerEmailSender(createTransport = nodemailer.createTransport, ready = loanerEmailReady) {
   return async function sendLoanerEmail(payload) {
     if (!ready()) return { ok: false, message: 'Loaner SMTP sending is not enabled.' };
@@ -20,4 +23,4 @@ function createLoanerEmailSender(createTransport = nodemailer.createTransport, r
     } finally { transport.close?.(); }
   };
 }
-module.exports = { loanerEmailReady, createLoanerEmailSender, sendLoanerEmail: createLoanerEmailSender() };
+module.exports = { loanerEmailReadiness, loanerEmailReady, createLoanerEmailSender, sendLoanerEmail: createLoanerEmailSender() };

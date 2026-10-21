@@ -55,3 +55,46 @@ test('response loss retries the same submission ID instead of creating a second 
   expect(axios.post.mock.calls[0][1].requestId).toBe(axios.post.mock.calls[1][1].requestId);
   expect(axios.post.mock.calls[1][1].stockNumber).toBe('SALE2');
 });
+
+const queued = { ...pending, state: 'processed', email_state: 'queued' };
+function queueResponse(row=queued) {
+  axios.get.mockImplementation(url=>Promise.resolve({data:url.endsWith('cpo-fees')?fees:[row]}));
+}
+test.each(['SENDER_MISMATCH','PASSWORD_MISSING'])('admin sees %s on read without attempting send',async code=>{
+  queueResponse({...queued,emailReadiness:{ready:false,code,message:`Correct ${code} in backend settings.`}});
+  mount('Admin');await screen.findByText(`Correct ${code} in backend settings.`);
+  expect(screen.getByRole('button',{name:'Send queued email'})).toBeDisabled();expect(axios.post).not.toHaveBeenCalled();
+});
+test('unchanged queued response explains preflight failure instead of silently succeeding',async()=>{
+  queueResponse();mount('Admin');await screen.findByRole('button',{name:'Send queued email'});
+  const blocked={...queued,emailReadiness:{ready:false,code:'PASSWORD_MISSING',message:'Restore existing SMTP credential privately.'}};
+  axios.post.mockImplementation(async()=>{queueResponse(blocked);return {data:blocked};});
+  fireEvent.click(screen.getByRole('button',{name:'Send queued email'}));
+  await screen.findByText('No email attempted. Restore existing SMTP credential privately.');
+  expect(axios.post).toHaveBeenCalledTimes(1);
+});
+test.each(['accepted','uncertain'])('send displays %s outcome and removes retry control',async state=>{
+  queueResponse();mount('Admin');await screen.findByRole('button',{name:'Send queued email'});
+  const updated={...queued,email_state:state};axios.post.mockImplementation(async()=>{queueResponse(updated);return {data:updated};});
+  fireEvent.click(screen.getByRole('button',{name:'Send queued email'}));
+  await screen.findByText(state==='accepted'?'Email accepted by the mail server. Mailbox delivery is not confirmed.':'Email outcome needs reconciliation. Do not resend or resubmit this request.');
+  expect(screen.queryByRole('button',{name:'Send queued email'})).not.toBeInTheDocument();
+});
+test('lost POST response requires explicit successful refresh and never repeats send',async()=>{
+  queueResponse();mount('Admin');await screen.findByRole('button',{name:'Send queued email'});
+  axios.post.mockRejectedValue(new Error('network lost'));
+  fireEvent.click(screen.getByRole('button',{name:'Send queued email'}));
+  await screen.findByText(/No reliable send response/);
+  expect(screen.getByRole('button',{name:'Send queued email'})).toBeDisabled();
+  queueResponse({...queued,email_state:'uncertain'});fireEvent.click(screen.getByRole('button',{name:'Refresh'}));
+  await screen.findByText('Request: processed; email: uncertain');
+  expect(axios.post).toHaveBeenCalledTimes(1);expect(screen.queryByRole('button',{name:'Send queued email'})).not.toBeInTheDocument();
+});
+test('accepted response stays visible if subsequent fetch fails; no resend offered',async()=>{
+  queueResponse();mount('Admin');await screen.findByRole('button',{name:'Send queued email'});
+  axios.post.mockImplementation(async()=>{axios.get.mockRejectedValue(new Error('fetch failed'));return {data:{...queued,email_state:'accepted'}};});
+  fireEvent.click(screen.getByRole('button',{name:'Send queued email'}));
+  await screen.findByText(/The action returned, but refreshing failed/);
+  expect(screen.getByText('Request: processed; email: accepted')).toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'Send queued email'})).not.toBeInTheDocument();expect(axios.post).toHaveBeenCalledTimes(1);
+});
