@@ -291,10 +291,15 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
     }
   };
 
+  const loanerDraftKey = `loaner-sale-request:${auth?.user?.id}:${formData.stockNumber}`;
+  const [isSubmittingLoaner, setIsSubmittingLoaner] = useState(false);
   const handleSubmitLoanerRequest = async () => {
+    if (isSubmittingLoaner) return;
+    setIsSubmittingLoaner(true);
     try {
       const advisorEmail = salespeople.find(person => person.name === formData.advisor)?.email || auth?.user?.email || '';
       const loanerPayload = {
+        requestId: sessionStorage.getItem(loanerDraftKey) || crypto.randomUUID(),
         stockNumber: formData.stockNumber,
         clientName: formData.clientName,
         soldUnit: loanerRequestData.soldUnit,
@@ -303,6 +308,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
         respondersEmail: auth?.user?.email || ''
       };
 
+      sessionStorage.setItem(loanerDraftKey, loanerPayload.requestId);
       const response = await axios.post(`${API_BASE_URL}/loaners/request`, loanerPayload, {
         headers: {
           'Authorization': `Bearer ${auth.token}`,
@@ -311,7 +317,8 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
       });
 
       if (response.status === 200) {
-        alert('Loaner request submitted successfully.');
+        sessionStorage.removeItem(loanerDraftKey);
+        alert('Loaner request saved for admin approval.');
         setShowLoanerRequest(false);
       }
     } catch (error) {
@@ -322,6 +329,8 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
         ? serverMessage
         : JSON.stringify(serverMessage);
       alert(`Error submitting loaner request: ${readableMessage || error.message}`);
+    } finally {
+      setIsSubmittingLoaner(false);
     }
   };
 
@@ -730,6 +739,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
                       type="button"
                       className="send-loaner-request-button"
                       onClick={handleSubmitLoanerRequest}
+                      disabled={isSubmittingLoaner}
                     >
                       Submit Loaner Request
                     </button>

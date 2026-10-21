@@ -59,6 +59,7 @@ const NavbarComponent = ({ isDarkMode, onToggleTheme }) => {
               <Nav.Link as={Link} to="/mission-250">{contestAvailability.name || 'Mission 250'}</Nav.Link>
             )}
             {auth?.user && <Nav.Link as={Link} to="/loaners">Loaners</Nav.Link>}
+            {auth?.user && <Nav.Link as={Link} to="/loaners/requests">Loaner requests</Nav.Link>}
             {auth?.user?.role === 'Admin' && (
               <Nav.Link as={Link} to="/admin">Admin</Nav.Link>
             )}

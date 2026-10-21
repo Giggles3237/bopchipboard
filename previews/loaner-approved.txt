@@ -1,0 +1,27 @@
+CHIPBOARD
+Loaner request approved
+
+Client: Alex Morgan
+Request / sale stock number: PB4821
+Sold unit: Yes
+
+Pulled vehicle stock number: PB4821
+Replacement vehicle stock number: PB5176
+
+Pulled vehicle CPO: Yes
+CPO model/category: X3
+CPO term: 60 months / unlimited miles
+CPO cost: $1,200.00 USD (base fee only)
+
+Requester: requester@example.com
+Submitted at: Oct 21, 2026, 9:00 AM EDT
+Client advisor: advisor@example.com
+Approved by: Jordan Lee · admin@example.com (user 7)
+Approved at: Oct 21, 2026, 10:15 AM EDT
+
+Additional notes:
+Please prepare the replacement for the loaner fleet.
+Requested handoff: Friday morning.
+
+Request ID: preview-request-2026-10-21
+Fee chart: bmw-2024-10-01-60mo-base-only

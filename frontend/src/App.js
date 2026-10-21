@@ -18,6 +18,7 @@ import SalesTable from './components/SalesTable';
 import AdminDashboard from './components/AdminDashboard';
 import PrivateRoute from './components/PrivateRoute';
 import LoanerSheet from './components/LoanerSheet';
+import LoanerRequests from './components/LoanerRequests';
 import LoanerUpload from './components/LoanerUpload';
 import LoanerSettings from './components/LoanerSettings';
 import ViewToggleBar from './components/ViewToggleBar';
@@ -299,6 +300,7 @@ function App() {
           {error && <p className="error-message">{error}</p>}
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/loaners/requests" element={<PrivateRoute><LoanerRequests /></PrivateRoute>} />
             <Route path="/loaners" element={<PrivateRoute><LoanerSheet /></PrivateRoute>} />
             <Route path="/loaners/upload" element={<PrivateRoute roles={['Admin', 'Manager']}><LoanerUpload /></PrivateRoute>} />
             <Route path="/loaners/settings" element={<PrivateRoute roles={['Admin']}><LoanerSettings /></PrivateRoute>} />

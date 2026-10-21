@@ -47,3 +47,6 @@ Thumbs.db
 certs/
 # Local Netlify folder
 .netlify
+
+# Reviewed schema migration source (never runtime dumps)
+!migrations/loaner-requests.sql

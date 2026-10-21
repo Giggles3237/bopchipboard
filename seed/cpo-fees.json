@@ -1,0 +1,12 @@
+{
+  "version": "bmw-2024-10-01-60mo-base-only",
+  "effectiveDate": "2024-10-01",
+  "termMonths": 60,
+  "currency": "USD",
+  "levels": [
+    {"level": 1, "cost": 850, "models": ["2 Series", "3 Series", "4 Series", "X1", "X2", "Z4", "i3"]},
+    {"level": 2, "cost": 1200, "models": ["i4", "i5", "5 Series", "X3", "X4"]},
+    {"level": 3, "cost": 1650, "models": ["6 Series", "7 Series", "8 Series", "X5", "X6", "X7", "iX", "i7", "i8"]},
+    {"level": 4, "cost": 2250, "models": ["M", "XM", "Alpina"]}
+  ]
+}
