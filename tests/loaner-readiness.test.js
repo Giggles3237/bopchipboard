@@ -30,3 +30,15 @@ test('SMTP uses only snapshotted recipients and both bodies; partial acceptance 
     if(password===undefined) delete process.env.EMAIL_PASSWORD;else process.env.EMAIL_PASSWORD=password;
   }
 });
+
+test('admin readiness diagnostics distinguish missing schema from access failures without leaking driver details', async () => {
+  for (const [code, expected] of [['ER_NO_SUCH_TABLE', 'table is missing'], ['ER_BAD_FIELD_ERROR', 'incompatible columns'], ['ER_TABLEACCESS_DENIED_ERROR', 'cannot read'], ['ECONNRESET', 'query failed']]) {
+    const check = createLoanerReadiness({execute:async()=>{throw Object.assign(new Error('secret connection SQL'),{code});}},()=>true);
+    let body; const res={status(){return this;},json(x){body=x;}};
+    await check({auth:{role:'Admin'}},res,()=>assert.fail('must block'));
+    assert.ok(body.message.includes(expected)); assert.ok(body.message.includes(code));
+    assert.ok(!body.message.includes('secret'));
+    await check({auth:{role:'Salesperson'}},res,()=>assert.fail('must block'));
+    assert.ok(!body.message.includes(code)); assert.ok(!body.message.includes(expected));
+  }
+});
