@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildLoanerApprovalEmail, buildLoanerRecipients } = require('../utils/loanerRequestEmail');
+const { buildLoanerApprovalEmail, buildLoanerRecipients, buildLoanerRecipientPolicy } = require('../utils/loanerRequestEmail');
 const request = { stockNumber: 'SALE123', clientName: 'Jane Buyer', soldUnit: 'Yes', additionalInformation: 'Please prepare the replacement.\nThank you.', clientAdvisorEmail: 'advisor@example.com', respondersEmail: 'requester@example.com', submittedAt: '2026-10-21T13:00:00Z' };
 const approval = { pulledStockNumber: 'PULL123', replacementStockNumber: 'NEW456', approvedBy: '7', approverName: 'Pat Admin', approverEmail: 'admin@example.com', approvedAt: '2026-10-21T14:15:00Z', cpo: { enabled: true, cost: 1200, model: 'X3', termMonths: 60, version: 'bmw-2024-10-01-60mo-base-only' } };
 
@@ -19,12 +19,12 @@ test('approved email has both complete plain text and table-based branded HTML',
   assert.match(email.html, /replacement\.<br>Thank you\./);
   assert.doesNotMatch(email.html, /<script|<iframe|<img|<a\s|href=|src=|url\(/i);
 });
-test('recipient policy uses only distribution plus requester and deduplicates case-insensitively', () => {
+test('recipient policy includes distribution and requester in To and distinct advisor in CC', () => {
   assert.deepEqual(buildLoanerRecipients('requester@example.com'), ['loanerdistribution@pandwforeigncars.com', 'requester@example.com']);
   assert.deepEqual(buildLoanerRecipients(' LoanerDistribution@PANDWFOREIGNCARS.COM '), ['loanerdistribution@pandwforeigncars.com']);
   const email = buildLoanerApprovalEmail('request-1', request, approval);
   assert.deepEqual(email.to, ['loanerdistribution@pandwforeigncars.com', 'requester@example.com']);
-  assert.deepEqual(email.cc, []); assert.deepEqual(email.bcc, []);
+  assert.deepEqual(email.cc, [request.clientAdvisorEmail]); assert.deepEqual(email.bcc, []);
   assert.ok(!email.to.includes(request.clientAdvisorEmail)); assert.ok(!email.to.includes(approval.approverEmail));
 });
 test('recipient rejects missing, malformed, header-injected and multi-address values', () => {
@@ -34,7 +34,7 @@ test('recipient rejects missing, malformed, header-injected and multi-address va
 });
 test('all dynamic HTML fields are escaped and never become links or raw markup', () => {
   const attack = '<img src=x onerror="alert(1)"> & \'test\'';
-  const email = buildLoanerApprovalEmail(attack, { ...request, stockNumber: attack, clientName: attack, additionalInformation: attack, clientAdvisorEmail: attack }, { ...approval, pulledStockNumber: attack, replacementStockNumber: attack, approverName: attack, approverEmail: attack, approvedBy: attack, cpo: { ...approval.cpo, model: attack, version: attack } });
+  const email = buildLoanerApprovalEmail(attack, { ...request, stockNumber: attack, clientName: attack, additionalInformation: attack }, { ...approval, pulledStockNumber: attack, replacementStockNumber: attack, approverName: attack, approverEmail: attack, approvedBy: attack, cpo: { ...approval.cpo, model: attack, version: attack } });
   assert.doesNotMatch(email.html, /<img|onerror="alert/);
   assert.match(email.html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt; &amp; &#39;test&#39;/);
   assert.ok(email.body.includes(attack)); // Plain text stays text.
@@ -59,4 +59,16 @@ test('no CPO explicitly displays No and zero/not applicable in both formats', ()
   assert.match(email.html, /CPO for the pulled vehicle: No/);
   assert.match(email.html, /\$0.00 USD/);
   assert.match(email.html, /Not applicable/);
+});
+
+test('advisor deduplicates across To and CC case-insensitively', () => {
+  for (const advisor of ['REQUESTER@EXAMPLE.COM', ' LoanerDistribution@PANDWFOREIGNCARS.COM ']) {
+    assert.deepEqual(buildLoanerRecipientPolicy('requester@example.com', advisor), { to: ['loanerdistribution@pandwforeigncars.com', 'requester@example.com'], cc: [], bcc: [] });
+  }
+  assert.deepEqual(buildLoanerRecipientPolicy('loanerdistribution@pandwforeigncars.com', 'advisor@example.com'), { to: ['loanerdistribution@pandwforeigncars.com'], cc: ['advisor@example.com'], bcc: [] });
+});
+test('advisor must be one valid mailbox, never silently omitted', () => {
+  for (const advisor of [undefined, '', 'invalid', 'Name <a@example.com>', 'a@example.com,b@example.com', 'a@example.com\r\nBcc: b@example.com']) {
+    assert.throws(() => buildLoanerRecipientPolicy('requester@example.com', advisor), { status: 400, message: 'A valid client advisor email is required before sending.' });
+  }
 });

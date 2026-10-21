@@ -15,6 +15,16 @@ function buildLoanerRecipients(requesterEmail) {
   return email.toLowerCase() === LOANER_DISTRIBUTION ? [LOANER_DISTRIBUTION] : [LOANER_DISTRIBUTION, email];
 }
 
+function buildLoanerRecipientPolicy(requesterEmail, advisorEmail) {
+  const to = buildLoanerRecipients(requesterEmail);
+  // Reuse single-mailbox validation, but never silently omit a missing advisor.
+  let advisor;
+  try { buildLoanerRecipients(advisorEmail); advisor = advisorEmail.trim(); }
+  catch (_) { throw Object.assign(new Error('A valid client advisor email is required before sending.'), { status: 400 }); }
+  const cc = to.some(email => email.toLowerCase() === advisor.toLowerCase()) ? [] : [advisor];
+  return { to, cc, bcc: [] };
+}
+
 function displayDate(value) {
   if (!value) return 'Not recorded';
   const date = new Date(value);
@@ -23,7 +33,7 @@ function displayDate(value) {
 }
 
 function buildLoanerApprovalEmail(requestId, request, approval) {
-  const recipients = buildLoanerRecipients(request.respondersEmail);
+  const recipients = buildLoanerRecipientPolicy(request.respondersEmail, request.clientAdvisorEmail);
   const cpo = approval.cpo;
   const amount = `$${Number(cpo.cost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;
   const term = cpo.enabled ? '60 months / unlimited miles' : 'Not applicable';
@@ -92,6 +102,6 @@ ${field('REQUESTED BY', request.respondersEmail)}${field('SUBMITTED AT', submitt
 </td></tr></table>
 <!--[if mso]></td></tr></table><![endif]-->
 </td></tr></table></body></html>`;
-  return { subject, body, html, isHtml: true, to: recipients, cc: [], bcc: [] };
+  return { subject, body, html, isHtml: true, ...recipients };
 }
-module.exports = { escapeHtml, buildLoanerRecipients, buildLoanerApprovalEmail };
+module.exports = { escapeHtml, buildLoanerRecipients, buildLoanerRecipientPolicy, buildLoanerApprovalEmail };

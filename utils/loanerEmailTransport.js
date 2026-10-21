@@ -23,12 +23,12 @@ function createLoanerEmailSender(createTransport = nodemailer.createTransport, r
     try {
       const info = await transport.sendMail({
         from: buildEmailFrom(env),
-        to: payload.emailTo, cc: [], bcc: [], subject: payload.emailSubject,
+        to: payload.emailTo, cc: payload.emailCc || [], bcc: [], subject: payload.emailSubject,
         text: payload.emailBody, html: payload.emailHtml,
         messageId: `<loaner-${payload.requestId}@chipboard.gmail.com>`
       });
       // Partial acceptance must not invite a retry to recipients already accepted.
-      return { ok: !info.rejected?.length && info.accepted?.length === payload.emailTo.length };
+      return { ok: !info.rejected?.length && info.accepted?.length === payload.emailTo.length + (payload.emailCc || []).length };
     } finally { transport.close?.(); }
   };
 }

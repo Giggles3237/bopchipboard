@@ -148,7 +148,7 @@ test('failed approval write cannot send; loss after durable send claim remains h
   assert.equal(sends.length, 0); assert.equal((await store.get(input.requestId)).state, 'pending');
   store.approve = originalApprove;
   const originalClaim = store.claimEmail;
-  store.claimEmail = async id => { await originalClaim(id); throw new Error('claim response lost'); };
+  store.claimEmail = async (...args) => { await originalClaim(...args); throw new Error('claim response lost'); };
   await assert.rejects(service.approve(input.requestId, approval, admin));
   assert.equal(sends.length, 0); assert.equal((await store.get(input.requestId)).email_state, 'sending');
   await assert.rejects(service.retry(input.requestId, admin), { status: 409 });
@@ -183,4 +183,49 @@ test('requester recipients are trusted stored identity, not submitted responder 
   assert.deepEqual(row.email_payload.emailTo, sends[0].emailTo);
   assert.equal(row.email_payload.accountingStockNumber, undefined);
   assert.equal(row.email_payload.stockNumber, input.stockNumber);
+});
+
+
+test('legacy queued snapshot gets advisor CC atomically without rewriting approval or message', async () => {
+  let ready = false;
+  const { service, store, sends, db } = setup({ transportReady: () => ready });
+  const input = { ...request(), clientAdvisorEmail: 'other-advisor@example.com' };
+  await service.submit(input, user); await service.approve(input.requestId, approval, admin);
+  const before = await store.get(input.requestId);
+  const legacy = { ...before.email_payload, emailCc: [] };
+  db.prepare('UPDATE loaner_requests SET email_payload=? WHERE id=?').run(JSON.stringify(legacy), input.requestId);
+  ready = true;
+  await Promise.allSettled([service.retry(input.requestId, admin), service.retry(input.requestId, admin)]);
+  assert.equal(sends.length, 1);
+  assert.deepEqual(sends[0].emailTo, ['loanerdistribution@pandwforeigncars.com', user.email]);
+  assert.deepEqual(sends[0].emailCc, ['other-advisor@example.com']);
+  assert.deepEqual(sends[0].emailBcc, []);
+  assert.equal(sends[0].emailHtml, legacy.emailHtml);
+  assert.equal(sends[0].emailBody, legacy.emailBody);
+  assert.deepEqual((await store.get(input.requestId)).approval_json, before.approval_json);
+  const accepted = await store.get(input.requestId);
+  await assert.rejects(service.retry(input.requestId, admin), { status: 409 });
+  assert.deepEqual(await store.get(input.requestId), accepted);
+});
+test('invalid legacy advisor blocks before send claim and leaves snapshot unchanged', async () => {
+  for (const advisor of [undefined, '', 'invalid', 'one@example.com,two@example.com']) {
+    let ready = false;
+    const { service, store, sends, db } = setup({ transportReady: () => ready });
+    const input = request(); await service.submit(input, user); await service.approve(input.requestId, approval, admin);
+    const row = await store.get(input.requestId);
+    db.prepare('UPDATE loaner_requests SET request_json=? WHERE id=?').run(JSON.stringify({ ...row.request_json, clientAdvisorEmail: advisor }), input.requestId);
+    const before = await store.get(input.requestId); ready = true;
+    await assert.rejects(service.retry(input.requestId, admin), { status: 400 });
+    assert.equal(sends.length, 0); assert.deepEqual(await store.get(input.requestId), before);
+  }
+});
+test('attempted email snapshots never receive recipient upgrades', async () => {
+  for (const state of ['sending', 'uncertain', 'accepted']) {
+    const { service, store, db, sends } = setup({ transportReady: () => false });
+    const input = request(); await service.submit(input, user); await service.approve(input.requestId, approval, admin);
+    db.prepare('UPDATE loaner_requests SET email_state=? WHERE id=?').run(state, input.requestId);
+    const before = await store.get(input.requestId);
+    await assert.rejects(service.retry(input.requestId, admin), { status: 409 });
+    assert.deepEqual(await store.get(input.requestId), before); assert.equal(sends.length, 0);
+  }
 });

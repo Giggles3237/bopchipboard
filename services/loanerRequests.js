@@ -1,5 +1,5 @@
 const rates = require('../seed/cpo-fees.json');
-const { buildLoanerApprovalEmail, buildLoanerRecipients } = require('../utils/loanerRequestEmail');
+const { buildLoanerApprovalEmail, buildLoanerRecipientPolicy } = require('../utils/loanerRequestEmail');
 const { isDeepStrictEqual } = require('node:util');
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 function text(value, label, max = 200) {
@@ -32,7 +32,13 @@ function createLoanerRequests({ store, send, transportReady, feeChart = rates })
     // Preflight failures are safe to retry. Once claimed, never automatically retry:
     // HTTP failures/timeouts and process crashes may occur after delivery.
     if (!transportReady()) return store.get(id);
-    if (!await store.claimEmail(id)) return store.get(id);
+    const queued = await store.get(id);
+    if (!queued || queued.email_state !== 'queued') return queued;
+    const recipients = buildLoanerRecipientPolicy(queued.request_json.respondersEmail, queued.request_json.clientAdvisorEmail);
+    // Apply the current recipient policy only while atomically claiming an unattempted email.
+    // Preserve the approved body, fee snapshot, and all attempted/sent history.
+    const payload = { ...queued.email_payload, emailTo: recipients.to, emailCc: recipients.cc, emailBcc: [], recipientPolicy: 'requester-and-advisor-v2' };
+    if (!await store.claimEmail(id, payload)) return store.get(id);
     const row = await store.get(id);
     let result;
     try { result = await send(row.email_payload); }
@@ -52,7 +58,7 @@ function createLoanerRequests({ store, send, transportReady, feeChart = rates })
         clientAdvisorEmail: text(input.clientAdvisorEmail || input.advisorEmail, 'Advisor email'),
         respondersEmail: text(user.email, 'Authenticated submitter email')
       };
-      buildLoanerRecipients(request.respondersEmail);
+      buildLoanerRecipientPolicy(request.respondersEmail, request.clientAdvisorEmail);
       if (!['Yes', 'No'].includes(request.soldUnit)) fail(400, 'Sold unit must be Yes or No.');
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(request.clientAdvisorEmail)) fail(400, 'Invalid advisor email.');
       const row = await store.submit(id, user.userId, request);
