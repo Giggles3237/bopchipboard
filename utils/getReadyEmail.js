@@ -1,6 +1,6 @@
 const nodemailer = require("nodemailer");
 
-function buildEmailConfig() {
+function buildEmailConfig(env = process.env) {
   const {
     EMAIL_HOST,
     EMAIL_PORT,
@@ -10,7 +10,7 @@ function buildEmailConfig() {
     EMAIL_PASSWORD,
     EMAIL_REQUIRE_TLS,
     EMAIL_TLS_REJECT_UNAUTHORIZED
-  } = process.env;
+  } = env;
 
   const parsedPort = EMAIL_PORT ? parseInt(EMAIL_PORT, 10) : undefined;
   const parsedSecure = typeof EMAIL_SECURE === 'string' ? EMAIL_SECURE === 'true' : undefined;
@@ -73,7 +73,10 @@ try {
   emailConfig = null;
 }
 
-const fromAddress = process.env.EMAIL_FROM || (emailConfig?.auth?.user ? `"Chipboard System" <${emailConfig.auth.user}>` : null);
+function buildEmailFrom(env = process.env, authUser = env.EMAIL_USER) {
+  return env.EMAIL_FROM || (authUser ? `"Chipboard System" <${authUser}>` : null);
+}
+const fromAddress = buildEmailFrom(process.env, emailConfig?.auth?.user || null);
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -549,6 +552,7 @@ async function addRowToExcelViaGetReadyEmail(values, recipients = []) {
 
 module.exports = { 
   buildEmailConfig,
+  buildEmailFrom,
   sendGetReadyEmail,
   sendGetReadyEscalationEmail,
   addRowToExcelViaGetReadyEmail,

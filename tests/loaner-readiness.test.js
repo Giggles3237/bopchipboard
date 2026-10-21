@@ -14,18 +14,19 @@ test('disabled workflow and absent schema block work without writes or sends', a
   assert.equal(continued,true);
 });
 test('SMTP uses only snapshotted recipients and both bodies; partial acceptance stays uncertain', async () => {
-  const saved = process.env.EMAIL_USER; const password = process.env.EMAIL_PASSWORD;
-  process.env.EMAIL_USER='chipboard.bot@gmail.com'; process.env.EMAIL_PASSWORD='mock';
+  const saved = process.env.EMAIL_USER; const password = process.env.EMAIL_PASSWORD; const enabled = process.env.LOANER_EMAIL_ENABLED;
+  process.env.EMAIL_USER='chipboard.bot@gmail.com'; process.env.EMAIL_PASSWORD='mock'; process.env.LOANER_EMAIL_ENABLED='true';
   try {
     let message;
     const send=createLoanerEmailSender(()=>({sendMail:async m=>{message=m;return {accepted:['distribution@example.com'],rejected:['requester@example.com']};}}),()=>true);
     const payload={requestId:'test-id',emailTo:['distribution@example.com','requester@example.com'],emailSubject:'Approved',emailBody:'plain',emailHtml:'<p>Approved</p>'};
     assert.equal((await send(payload)).ok,false);
     assert.deepEqual(message.to,payload.emailTo);assert.deepEqual(message.cc,[]);assert.deepEqual(message.bcc,[]);
-    assert.equal(message.from.address,'chipboard.bot@gmail.com');assert.equal(message.text,'plain');assert.equal(message.html,payload.emailHtml);
+    assert.equal(message.from,'"Chipboard System" <chipboard.bot@gmail.com>');assert.equal(message.text,'plain');assert.equal(message.html,payload.emailHtml);
     assert.equal((await createLoanerEmailSender(()=>{throw Error('must not connect');},()=>false)(payload)).ok,false);
-    assert.equal(loanerEmailReady(),false);
+    assert.equal(loanerEmailReady(),true);
   } finally {
+    if(enabled===undefined) delete process.env.LOANER_EMAIL_ENABLED;else process.env.LOANER_EMAIL_ENABLED=enabled;
     if(saved===undefined) delete process.env.EMAIL_USER;else process.env.EMAIL_USER=saved;
     if(password===undefined) delete process.env.EMAIL_PASSWORD;else process.env.EMAIL_PASSWORD=password;
   }
@@ -46,7 +47,7 @@ test('admin readiness diagnostics distinguish missing schema from access failure
 test('readiness safely identifies each preflight blocker without returning configured values', () => {
   const { loanerEmailReadiness } = require('../utils/loanerEmailTransport');
   const configured={LOANER_EMAIL_ENABLED:'true',EMAIL_USER:'chipboard.bot@gmail.com',EMAIL_PASSWORD:'private-secret'};
-  for(const [env,code] of [[{...configured,LOANER_EMAIL_ENABLED:'false'},'EMAIL_DISABLED'],[{...configured,EMAIL_USER:'private-other@example.com'},'SENDER_MISMATCH'],[{...configured,EMAIL_PASSWORD:''},'PASSWORD_MISSING'],[configured,'CONFIGURED']]) {
+  for(const [env,code] of [[{...configured,LOANER_EMAIL_ENABLED:'false'},'EMAIL_DISABLED'],[{...configured,EMAIL_USER:'invalid-address'},'SENDER_INVALID'],[{...configured,EMAIL_USER:''},'USER_MISSING'],[{...configured,EMAIL_PASSWORD:''},'PASSWORD_MISSING'],[configured,'CONFIGURED']]) {
     const result=loanerEmailReadiness(env);assert.equal(result.code,code);assert.equal(result.ready,code==='CONFIGURED');
     assert.ok(!JSON.stringify(result).includes('private-secret'));assert.ok(!JSON.stringify(result).includes('private-other'));
   }
