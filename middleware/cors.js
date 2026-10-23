@@ -1,6 +1,7 @@
 const allowedOrigins = new Set([
   'https://bopchips.netlify.app',
   'https://www.bopchips.netlify.app',
+  'https://bopchipboard-c66df77a754d.herokuapp.com',
   'http://localhost:3000',
   'http://localhost:5001'
 ]);

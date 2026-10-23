@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
+const cors = require('cors');
+const corsOrigin = require('../middleware/cors');
 const jwt = require('jsonwebtoken');
 
 test('Get Ready escalation confirmation submits comments without resubmitting the token in the body', async (t) => {
@@ -19,6 +21,7 @@ test('Get Ready escalation confirmation submits comments without resubmitting th
   delete require.cache[require.resolve('../routes/getready')];
   const getReadyRouter = require('../routes/getready');
   const app = express();
+  app.use(cors({ origin: corsOrigin, credentials: true }));
   app.use('/api/getready', getReadyRouter);
   app.use((error, req, res, next) => {
     res.status(500).json({ message: 'Something broke!', detail: error.message });
@@ -53,14 +56,30 @@ test('Get Ready escalation confirmation submits comments without resubmitting th
 
   const submitResponse = await fetch(`${baseUrl}/api/getready/escalate?token=${encodeURIComponent(token)}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      origin: 'https://bopchipboard-c66df77a754d.herokuapp.com'
+    },
     body: new URLSearchParams({ escalationComments: 'Needs attention & a status update' })
   });
   const submitHtml = await submitResponse.text();
 
   assert.equal(submitResponse.status, 200);
+  assert.equal(submitResponse.headers.get('access-control-allow-origin'), 'https://bopchipboard-c66df77a754d.herokuapp.com');
   assert.match(submitHtml, /Get Ready Escalated/);
   assert.equal(sentData.escalationComments, 'Needs attention & a status update');
+});
+
+test('CORS still rejects origins outside the application allowlist', () => {
+  for (const origin of [
+    'https://untrusted.example',
+    'https://bopchipboard-c66df77a754d.herokuapp.com.untrusted.example'
+  ]) {
+    corsOrigin(origin, (error, allowed) => {
+      assert.match(error.message, /Not allowed by CORS/);
+      assert.notEqual(allowed, true);
+    });
+  }
 });
 
 test('malformed escalation form data gets a useful response instead of the global error page', async (t) => {
