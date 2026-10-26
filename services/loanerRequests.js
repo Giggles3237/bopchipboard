@@ -83,8 +83,7 @@ function createLoanerRequests({ store, send, transportReady, feeChart = rates })
       if (!['Yes', 'No'].includes(request.soldUnit)) fail(400, 'Sold unit must be Yes or No.');
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(request.clientAdvisorEmail)) fail(400, 'Invalid advisor email.');
       const row = await store.submit(id, user.userId, request);
-      const previousRequest = row.request_json.organizationId ? row.request_json : { ...row.request_json, organizationId: String(row.organization_id) };
-      if (row.submitted_by !== String(user.userId) || !isDeepStrictEqual(previousRequest, request)) fail(409, 'Request ID is already used for different details.');
+      if (row.submitted_by !== String(user.userId) || String(row.organization_id) !== String(user.organizationId) || !isDeepStrictEqual(row.request_json, request)) fail(409, 'Request ID is already used for different details.');
       return row;
     },
     async approve(id, input, user) {

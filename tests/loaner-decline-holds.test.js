@@ -103,14 +103,38 @@ test('sold releases still require replacement and explicit CPO; client cannot sw
   await assert.rejects(service.submit({...request,soldUnit:'No'},requester),{status:409});
   assert.equal((await service.approve(request.requestId,approval,admin)).state,'processed');
 });
-test('legacy idempotent submission and approved history survive without backfill', async () => {
-  const {service,store,db}=setup();const request=input();await service.submit(request,requester);
-  const saved=(await store.get(request.requestId)).request_json; delete saved.organizationId;
-  db.prepare('UPDATE loaner_requests SET request_json=? WHERE id=?').run(JSON.stringify(saved),request.requestId);
-  await service.submit(request,requester);const before=await store.get(request.requestId);
-  assert.equal(before.request_json.organizationId,undefined);
+test('unverified legacy ownership stays restricted across submitter organization changes', async () => {
+  const {service,store,db,sends}=setup();const request=input();await service.submit(request,requester);
+  const saved=(await store.get(request.requestId)).request_json;delete saved.organizationId;
+  db.prepare('UPDATE loaner_requests SET request_json=?,state=?,email_state=? WHERE id=?').run(JSON.stringify(saved),'processed','queued',request.requestId);
+  const before=await store.get(request.requestId);
+  for(const membership of ['1','2']) {
+    db.prepare('UPDATE users SET organization_id=? WHERE id=?').run(membership,12);
+    for(const organizationId of ['1','2']) {
+      const actor={...admin,organizationId};
+      assert.deepEqual(await store.list(actor),[]);
+      assert.deepEqual(await store.list({...requester,organizationId}),[]);
+      await assert.rejects(service.approve(request.requestId,approval,actor),{status:404});
+      await assert.rejects(service.decline(request.requestId,{},actor),{status:404});
+      await assert.rejects(service.retry(request.requestId,actor),{status:404});
+      await assert.rejects(service.submit(request,{...requester,organizationId}),{status:409});
+    }
+    assert.deepEqual(await store.get(request.requestId),before);
+  }
+  assert.equal(before.organization_id,null);assert.equal(sends.length,0);
+});
+test('explicit verified ownership restores only the recorded organization without rewriting history or sending', async () => {
+  const {service,store,db,sends}=setup({transportReady:()=>false});const request=input();await service.submit(request,requester);
   await service.approve(request.requestId,approval,admin);
-  assert.deepEqual((await store.get(request.requestId)).request_json,before.request_json);
+  const saved=await store.get(request.requestId);const legacy={...saved.request_json};delete legacy.organizationId;
+  db.prepare('UPDATE loaner_requests SET request_json=? WHERE id=?').run(JSON.stringify(legacy),request.requestId);
+  db.prepare('UPDATE users SET organization_id=? WHERE id=?').run('2',12);
+  // Simulate an independently reviewed, explicit backfill in this synthetic fixture only.
+  db.prepare("UPDATE loaner_requests SET request_json=json_set(request_json,'$.organizationId',?) WHERE id=?").run('1',request.requestId);
+  const verified=await store.get(request.requestId);
+  assert.deepEqual(verified,saved);
+  assert.equal((await store.list(admin)).length,1);assert.deepEqual(await store.list({...admin,organizationId:'2'}),[]);
+  assert.equal(sends.length,0);
 });
 test('new request ownership survives submitter organization changes; unknown legacy owners fail closed', async () => {
  const {service,store,db}=setup();const request=input();await service.submit(request,requester);

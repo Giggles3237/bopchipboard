@@ -115,6 +115,7 @@ export default function LoanerRequests() {
       <button disabled={busy}>Submit for approval</button>
     </form>
     <h2>{admin ? 'Approval queue' : 'Your requests'}</h2><button disabled={busy} onClick={() => act(load)}>Refresh</button>
+    <p>Older requests may be hidden until organization ownership is verified. Do not recreate an existing request.</p>
     {!rows.length && <p>No requests.</p>}
     {rows.map(row => <section key={row.id} className="border rounded p-3 my-3">
       <h3>{row.request_json.stockNumber} — {row.request_json.clientName}</h3>

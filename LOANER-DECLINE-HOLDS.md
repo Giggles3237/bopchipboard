@@ -26,13 +26,25 @@ The existing submission draft remains editable; Hold-to-sold switching retains o
 
 The current user is re-resolved from users/roles, including active status and organization, before workflow operations. New requests snapshot organizationId in their existing JSON. Reads and decisions are scoped to that organization, and non-Admins see only their own requests. New ownership remains stable if a submitter later moves organizations.
 
-Legacy requests did not store organization ownership. They are scoped through the original submitter's current database organization; unknown/orphan ownership fails closed. No historical backfill is invented. If this installation has transferred users across organizations, their legacy rows need verified historical ownership before relying on them for historical tenant isolation. This limitation is confined to older records; no production data was inspected or changed.
+Legacy requests did not store organization ownership. Inspection found that routes/users.js can change user organization membership, but no historical membership record or immutable deployment tenant scope establishes ownership at request creation. Current membership is therefore never used to assign a legacy request.
+
+Requests without recorded organization ownership stay stored but are excluded from every organization queue. Approval, decline and notification retry return not found; an attempted submission reusing their ID conflicts rather than adopting or rewriting them. This also applies to the original submitter and Admins. The queue explains that older requests may be hidden pending verification and should not be recreated. Existing decision history and queued/accepted notification state remain unchanged. These records are not fully supported until individually verified; some or all pre-feature requests may therefore be unavailable in the app.
+
+### Controlled verification/backfill (not executed)
+
+1. An authorized operator identifies only the affected request IDs through a read-only review outside tenant-facing queues. Preserve a backup of each original row and its exact JSON/state before any write.
+2. Establish each request's organization **at creation** using independent immutable evidence, such as an archived deployment/database tenant mapping or recorded membership events covering its creation timestamp. Current user organization, email/domain, dealership branding, or the operator's active organization are not proof. If evidence is absent or ambiguous, leave the row restricted.
+3. Record an explicit reviewed mapping of request ID to organization ID, source evidence, reviewer and review timestamp. Obtain separate authorization for those exact production data changes; this development task authorizes none.
+4. In a controlled transaction, lock each named row, compare it against its reviewed snapshot, and verify that ownership is still absent. Add only `request_json.organizationId` using JSON_SET. Do not replace the whole request, change submitted_by, decision/history, or email state/payload. Abort on an existing different owner or changed snapshot. Retain the reviewed mapping and before/after audit outside the request's original data.
+5. Validate that exactly the approved rows became visible only to the verified organization and appropriate requestor/Admin. An identical completed mapping is a no-op; do not overwrite known ownership. Backfill does not dispatch email, approve, decline, or replay any notification.
+
+There is no automatic migration, mass assignment, ownership-claim endpoint, or default organization fallback. This is the smallest practical treatment that preserves records without exposing historical data under an assumed tenant.
 
 No migration is needed: the existing VARCHAR state fields and JSON decision/payload columns support the additional states. No live schema changes were made.
 
 ## Verification
 
-- Backend full suite: 82/82 pass, including 14 new decline/Hold service/store tests and SMTP failure-classification coverage.
+- Backend full suite: 83/83 pass, including 15 new decline/Hold service/store tests and SMTP failure-classification coverage.
 - Standalone frontend: 23/23 pass across LoanerRequests and ChipLoanerRequest.
 - Bundled frontend: the same 23/23 pass; its existing distinct source remains intact.
 - Changed frontend files pass uncached ESLint. Git whitespace checks pass.
@@ -42,4 +54,4 @@ No migration is needed: the existing VARCHAR state fields and JSON decision/payl
 
 ## Remaining release gates
 
-No development blocker or business-rule question remains for this workflow. Publication, merge and deployment still require authorization. Backend and frontend changes must ship together: new Hold approvals have null CPO and declined decisions have their own JSON shape, which the updated UI handles. SMTP operational delivery is not claimed; tests used mocked transport only. Existing enablement/configuration is reused and was not changed. No accounts, recipients or grants were changed. The separate chip-indicator stock-reuse question remains unresolved and is not part of these branches.
+The new-request workflow is implemented. Unverified legacy requests remain intentionally unavailable pending evidence-backed ownership verification; this is an explicit compatibility gate, not full legacy support. Publication, merge and deployment still require authorization. Backend and frontend changes must ship together: new Hold approvals have null CPO and declined decisions have their own JSON shape, which the updated UI handles. SMTP operational delivery is not claimed; tests used mocked transport only. Existing enablement/configuration is reused and was not changed. No accounts, recipients or grants were changed. The separate chip-indicator stock-reuse question remains unresolved and is not part of these branches.
