@@ -57,9 +57,9 @@ test('existing request read exposes readiness only to admins and never performs 
   const handler=router.stack.find(x=>x.route?.path==='/requests').route.stack.at(-1).handle;
   const row={id:'id',submitted_by:'1',email_state:'queued',request_json:{},approval_json:{},email_payload:{secret:'private'}};
   try {
-    oldPool.execute=async sql=>{assert.match(sql,/^SELECT/);return [sql.startsWith('SELECT id')?[{id:'id'}]:[row]];};
+    oldPool.execute=async sql=>{assert.match(sql,/^SELECT/);return [sql.startsWith('SELECT l.id')?[{id:'id'}]:[row]];};
     for(const role of ['Admin','Salesperson']) {
-      let result;await handler({auth:{role,userId:1}},{json(x){result=x;},status(){return this;}});
+      let result;await handler({auth:{role,userId:1,organizationId:'1'}},{json(x){result=x;},status(){return this;}});
       assert.equal(Boolean(result[0].emailReadiness),role==='Admin');assert.equal(result[0].email_payload,undefined);
     }
   } finally {oldPool.execute=original;}

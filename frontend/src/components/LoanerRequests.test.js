@@ -2,7 +2,7 @@ import React, { act } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import axios from 'axios';
 import { AuthContext } from '../contexts/AuthContext';
-import LoanerRequests from './LoanerRequests';
+import LoanerRequests, { ApprovalForm } from './LoanerRequests';
 jest.mock('axios');
 const fees = { levels: [{ level: 2, cost: 1200, models: ['X3'] }] };
 const pending = { id: 'request-1', state: 'pending', email_state: 'not_ready', request_json: { stockNumber: 'SALE1', clientName: 'Buyer', additionalInformation: 'Details', clientAdvisorEmail: 'advisor@example.com', respondersEmail: 'advisor@example.com', soldUnit: 'Yes' } };
@@ -27,7 +27,7 @@ test('admin confirms pulled and replacement stocks and base cost before approval
   fireEvent.change(screen.getByLabelText('Pulled vehicle make'), { target: { value: 'BMW' } });
   fireEvent.change(screen.getByLabelText('Confirmed BMW fee-chart model/category'), { target: { value: 'X3' } });
   expect(screen.getByLabelText('CPO cost')).toHaveValue('1200');
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Approve request' })); });
+  fireEvent.click(screen.getByRole('button', { name: 'Approve request' }));
   await waitFor(() => expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/request-1/approve'), expect.objectContaining({ pulledStockNumber: 'PULL1', replacementStockNumber: 'NEW1', cpo: true, cpoCost: 1200 }), expect.any(Object)));
 });
 test('MINI CPO cannot be approved using BMW rates', async () => {
@@ -49,9 +49,9 @@ test('response loss retries the same submission ID instead of creating a second 
   fireEvent.change(screen.getByLabelText('Request / sale stock number'), { target: { value: 'SALE2' } });
   fireEvent.change(screen.getByLabelText('Client name'), { target: { value: 'Buyer2' } });
   fireEvent.change(screen.getByLabelText('Additional notes'), { target: { value: 'Need pull' } });
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' })); });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
   await screen.findByRole('alert');
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' })); });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit for approval' }));
   expect(axios.post.mock.calls[0][1].requestId).toBe(axios.post.mock.calls[1][1].requestId);
   expect(axios.post.mock.calls[1][1].stockNumber).toBe('SALE2');
 });
@@ -97,4 +97,72 @@ test('accepted response stays visible if subsequent fetch fails; no resend offer
   await screen.findByText(/The action returned, but refreshing failed/);
   expect(screen.getByText('Request: processed; email: accepted')).toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'Send queued email'})).not.toBeInTheDocument();expect(axios.post).toHaveBeenCalledTimes(1);
+});
+
+test('Hold approval omits replacement and CPO rather than sending false', async () => {
+  const hold={...pending,request_json:{...pending.request_json,soldUnit:'No'}};
+  axios.get.mockImplementation(url=>Promise.resolve({data:url.endsWith('cpo-fees')?fees:[hold]}));
+  mount('Admin');await screen.findByRole('button',{name:'Approve request'});
+  expect(screen.queryByLabelText('Replacement stock number')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('CPO the pulled vehicle?')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Pulled vehicle stock number'),{target:{value:'HOLD123'}});
+  fireEvent.click(screen.getByRole('button',{name:'Approve request'}));
+  await waitFor(()=>expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/approve'),{pulledStockNumber:'HOLD123'},expect.any(Object)));
+});
+test('switching Hold and sold approval preserves draft values and restores required answers', () => {
+  const onApprove=jest.fn();
+  const view=render(<ApprovalForm row={pending} rates={fees} onApprove={onApprove} busy={false}/>);
+  fireEvent.change(screen.getByLabelText('Replacement stock number'),{target:{value:'REPLACE123'}});
+  view.rerender(<ApprovalForm row={{...pending,request_json:{...pending.request_json,soldUnit:'No'}}} rates={fees} onApprove={onApprove} busy={false}/>);
+  expect(screen.queryByLabelText('Replacement stock number')).not.toBeInTheDocument();
+  view.rerender(<ApprovalForm row={pending} rates={fees} onApprove={onApprove} busy={false}/>);
+  expect(screen.getByLabelText('Replacement stock number')).toHaveValue('REPLACE123');
+  expect(screen.getByLabelText('Replacement stock number')).toBeRequired();
+  expect(screen.getByLabelText('CPO the pulled vehicle?')).toBeRequired();
+  expect(screen.getByLabelText('CPO the pulled vehicle?')).toHaveValue('');
+  fireEvent.submit(screen.getByRole('form',{name:'Approve loaner request'}));
+  expect(onApprove.mock.calls[0][1].cpo).toBeUndefined();
+});
+test('existing Hold submission draft can switch to sold without losing typed details', async () => {
+  sessionStorage.setItem('loaner-request-draft:1',JSON.stringify({...pending.request_json,requestId:'11111111-1111-4111-8111-111111111111',soldUnit:'No'}));
+  mount('Salesperson');await screen.findByText('SALE1 — Buyer');
+  expect(screen.getByLabelText('Sold unit?')).toHaveValue('No');
+  fireEvent.change(screen.getByLabelText('Sold unit?'),{target:{value:'Yes'}});
+  expect(screen.getByLabelText('Request / sale stock number')).toHaveValue('SALE1');
+  fireEvent.click(screen.getByRole('button',{name:'Submit for approval'}));
+  await waitFor(()=>expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/request'),expect.objectContaining({soldUnit:'Yes',stockNumber:'SALE1'}),expect.any(Object)));
+});
+test('admin decline has optional reason, separate confirmation and duplicate click protection', async () => {
+  let resolvePost;axios.post.mockImplementation(()=>new Promise(resolve=>{resolvePost=resolve;}));
+  mount('Admin');await screen.findByRole('button',{name:'Decline request'});
+  fireEvent.click(screen.getByRole('button',{name:'Decline request'}));
+  expect(screen.getByLabelText('Decline reason (optional, shared with requestor)')).not.toBeRequired();
+  const button=screen.getByRole('button',{name:'Confirm decline'});
+  fireEvent.click(button);fireEvent.click(button);
+  expect(axios.post).toHaveBeenCalledTimes(1);
+  expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/decline'),{reason:''},expect.any(Object));
+  await act(async()=>resolvePost({data:{}}));
+});
+test('non-admin requestor sees declined history and reason without decision controls', async () => {
+  axios.get.mockImplementation(url=>Promise.resolve({data:url.endsWith('cpo-fees')?fees:[{...pending,state:'declined',email_state:'accepted',approval_json:{reason:'No available replacement',declinerName:'Admin',declinedAt:'2026-10-26'}}]}));
+  mount('Salesperson');await screen.findByText(/Reason: No available replacement/);
+  expect(screen.queryByRole('button',{name:'Decline request'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'Approve request'})).not.toBeInTheDocument();
+});
+test('failed decline notification shows durable outcome and retry action', async () => {
+  axios.get.mockImplementation(url=>Promise.resolve({data:url.endsWith('cpo-fees')?fees:[{...pending,state:'declined',email_state:'failed',approval_json:{reason:''},emailReadiness:{ready:true,message:'Configured'}}]}));
+  axios.post.mockResolvedValue({data:{...pending,state:'declined',email_state:'accepted'}});
+  mount('Admin');await screen.findByRole('button',{name:'Retry notification'});
+  expect(screen.getByText(/Decision saved. Email was not sent/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Retry notification'}));
+  await waitFor(()=>expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/retry-email'),{},expect.any(Object)));
+});
+test('approval validation error preserves inputs and blocks decisions until refreshed', async () => {
+  axios.post.mockRejectedValue({response:{data:{message:'Choose whether the pulled vehicle will be CPO.'}}});
+  mount('Admin');await screen.findByRole('button',{name:'Approve request'});
+  fireEvent.change(screen.getByLabelText('Pulled vehicle stock number'),{target:{value:'PULL123'}});
+  fireEvent.submit(screen.getByRole('form',{name:'Approve loaner request'}));
+  await screen.findByText('Choose whether the pulled vehicle will be CPO.');
+  expect(screen.getByLabelText('Pulled vehicle stock number')).toHaveValue('PULL123');
+  expect(screen.getByRole('button',{name:'Decline request'})).toBeDisabled();
 });

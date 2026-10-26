@@ -5,14 +5,16 @@ const { randomUUID } = require('node:crypto');
 const { createLoanerRequestStore } = require('../lib/loanerRequestStore');
 const { createLoanerRequests, approvalSnapshot, buildApprovedPayload } = require('../services/loanerRequests');
 const fees = require('../seed/cpo-fees.json');
-const user = { userId: 12, name: 'Advisor', email: 'advisor@example.com', role: 'Salesperson' };
-const admin = { userId: 1, name: 'Admin <A>', email: 'admin@example.com', role: 'Admin' };
+const user = { userId: 12, name: 'Advisor', email: 'advisor@example.com', role: 'Salesperson', organizationId: '1' };
+const admin = { userId: 1, name: 'Admin <A>', email: 'admin@example.com', role: 'Admin', organizationId: '1' };
 const request = () => ({ requestId: randomUUID(), stockNumber: 'SALE123', clientName: 'Buyer', soldUnit: 'Yes', additionalInformation: 'Pull request', clientAdvisorEmail: user.email });
 const approval = { pulledStockNumber: 'PULL123', replacementStockNumber: 'NEW456', cpo: true, make: 'BMW', cpoModel: 'X3', cpoCost: 1200 };
 function setup(options = {}) {
   // Execute production store SQL against isolated in-memory tables; no db.js or live DB.
   const db = new DatabaseSync(':memory:');
   db.exec("CREATE TABLE loaner_requests (id TEXT PRIMARY KEY, submitted_by TEXT, request_json JSON, state TEXT DEFAULT 'pending', approval_json JSON, email_payload JSON, email_state TEXT DEFAULT 'not_ready', created_at TEXT DEFAULT CURRENT_TIMESTAMP)");
+  db.function('JSON_UNQUOTE', value => value == null ? null : String(value));
+  db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, organization_id TEXT); INSERT INTO users VALUES (12,'1'),(1,'1'),(2,'1'),(13,'1');");
   const pool = { async execute(sql, args) {
     try {
       const statement = db.prepare(sql);
@@ -113,7 +115,7 @@ test('current user lookup supports old JWTs without email and rejects inactive/s
   const { oldPool } = require('../db'); const original = oldPool.execute;
   const middleware = router.stack.find(x => x.route?.path === '/requests/:id/approve').route.stack[1].handle;
   try {
-    oldPool.execute = async () => [[{ id: 1, name: 'Current', email: 'current@example.com', role: 'Salesperson', status: 'active' }]];
+    oldPool.execute = async () => [[{ id: 1, name: 'Current', email: 'current@example.com', role: 'Salesperson', status: 'active', organization_id: '1' }]];
     const req = { auth: { userId: 1, role: 'Admin' } }; let next = false;
     await middleware(req, {}, () => { next = true; });
     assert.equal(next, true); assert.equal(req.auth.email, 'current@example.com'); assert.equal(req.auth.role, 'Salesperson');

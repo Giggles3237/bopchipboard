@@ -6,6 +6,7 @@ const { createLoanerRequests } = require('../services/loanerRequests');
 const { sendLoanerEmail, loanerEmailReady, loanerEmailReadiness } = require('../utils/loanerEmailTransport');
 const { createLoanerReadiness } = require('../middleware/loanerReadiness');
 const rates = require('../seed/cpo-fees.json');
+const { buildDeclineRecipients } = require('../utils/loanerRequestEmail');
 const store = createLoanerRequestStore(oldPool);
 const service = createLoanerRequests({ store, send: sendLoanerEmail,
   transportReady: loanerEmailReady });
@@ -13,7 +14,12 @@ const router = express.Router();
 const loanerReady = createLoanerReadiness(oldPool);
 function presentLoaner(row, user) {
   const { email_payload, ...visible } = row;
-  if (user.role === 'Admin' && row.email_state === 'queued') visible.emailReadiness = loanerEmailReadiness();
+  if (user.role === 'Admin' && ['queued', 'failed'].includes(row.email_state)) visible.emailReadiness = loanerEmailReadiness();
+  if (row.state === 'declined' && ['queued', 'failed'].includes(row.email_state)) {
+    try { buildDeclineRecipients(row.request_json.respondersEmail); }
+    catch (_) { visible.notificationIssue = 'Decline saved. A valid stored requester email is required before notification can be sent.';
+      if (user.role === 'Admin') visible.emailReadiness = { ready: false, message: visible.notificationIssue }; }
+  }
   return visible;
 }
 const handle = fn => async (req, res) => {
@@ -27,10 +33,10 @@ const handle = fn => async (req, res) => {
 // tables rather than trusting the request's responder or a stale admin role.
 async function currentLoanerUser(req, res, next) {
   try {
-    const [users] = await oldPool.execute('SELECT u.id, u.name, u.email, u.status, r.name AS role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?', [req.auth.userId]);
+    const [users] = await oldPool.execute('SELECT u.id, u.name, u.email, u.status, u.organization_id, r.name AS role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?', [req.auth.userId]);
     const user = users[0];
-    if (!user || user.status !== 'active') return res.status(403).json({ message: 'Active user required' });
-    req.auth = { ...req.auth, userId: user.id, name: user.name, email: user.email, role: user.role };
+    if (!user || user.status !== 'active' || !user.organization_id) return res.status(403).json({ message: 'Active user required' });
+    req.auth = { ...req.auth, userId: user.id, name: user.name, email: user.email, role: user.role, organizationId: user.organization_id };
     next();
   } catch (_) { res.status(503).json({ message: 'Unable to verify current user.' }); }
 }
@@ -46,6 +52,10 @@ router.post('/request', authenticate, currentLoanerUser, loanerReady, handle(asy
 }));
 router.post('/requests/:id/approve', authenticate, currentLoanerUser, requireAdmin, loanerReady, handle(async (req, res) => {
   const row = await service.approve(req.params.id, req.body, req.auth);
+  res.json(presentLoaner(row, req.auth));
+}));
+router.post('/requests/:id/decline', authenticate, currentLoanerUser, requireAdmin, loanerReady, handle(async (req, res) => {
+  const row = await service.decline(req.params.id, req.body, req.auth);
   res.json(presentLoaner(row, req.auth));
 }));
 router.post('/requests/:id/retry-email', authenticate, currentLoanerUser, requireAdmin, loanerReady, handle(async (req, res) => {

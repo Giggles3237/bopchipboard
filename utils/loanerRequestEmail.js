@@ -32,7 +32,41 @@ function displayDate(value) {
   return date.toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
 }
 
+function buildDeclineRecipients(requesterEmail) {
+  buildLoanerRecipients(requesterEmail); // Shared single-mailbox/header validation only.
+  return { to: [requesterEmail.trim()], cc: [], bcc: [] };
+}
+
+function decisionHtml(title, body) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head><body style="margin:0;background:#eef2f6;font-family:Arial,Helvetica,sans-serif;color:#18283d"><table role="presentation" width="100%"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="100%" style="max-width:620px;background:white;border:1px solid #d7e1ec"><tr><td style="padding:24px;background:#12263d;color:white;border-top:5px solid #3f90cd"><p>CHIPBOARD</p><h1 style="font-size:26px">${escapeHtml(title)}</h1></td></tr><tr><td style="padding:24px;font-size:15px;line-height:1.6;overflow-wrap:anywhere;word-break:break-word">${escapeHtml(body).replace(/\n/g, '<br>')}</td></tr></table></td></tr></table></body></html>`;
+}
+
+function buildLoanerDeclineEmail(id, request, decision) {
+  let recipients;
+  try { recipients = buildDeclineRecipients(request.respondersEmail); }
+  catch (_) { recipients = { to: [], cc: [], bcc: [] }; } // Save decline; surface recipient blocker.
+  const subject = `Loaner request declined | ${request.stockNumber}`.replace(/[\r\n]+/g, ' ');
+  const body = ['Your loaner request was declined.', '', `Stock number: ${request.stockNumber}`,
+    `Reason: ${decision.reason || 'No reason provided.'}`, `Declined at: ${displayDate(decision.declinedAt)}`,
+    `Request ID: ${id}`].join('\n');
+  return { ...recipients, subject, body, html: decisionHtml('Loaner request declined', body) };
+}
+
+function buildHoldApprovalEmail(id, request, approval) {
+  const recipients = buildLoanerRecipientPolicy(request.respondersEmail, request.clientAdvisorEmail);
+  const subject = `Loaner hold approved | ${request.stockNumber}`.replace(/[\r\n]+/g, ' ');
+  const body = ['Loaner hold request approved', '', `Client: ${request.clientName}`,
+    `Request stock number: ${request.stockNumber}`, 'Request type: Hold (not sold)',
+    `Pulled vehicle stock number: ${approval.pulledStockNumber}`,
+    'Replacement vehicle: Not applicable — Hold request', 'CPO: Not applicable — Hold request; no answer or fee required',
+    `Requester: ${request.respondersEmail}`, `Client advisor: ${request.clientAdvisorEmail}`,
+    `Approved by: ${approval.approverName || approval.approvedBy}`, `Approved at: ${displayDate(approval.approvedAt)}`,
+    '', 'Additional notes:', request.additionalInformation || 'None provided', '', `Request ID: ${id}`].join('\n');
+  return { ...recipients, subject, body, html: decisionHtml('Loaner hold approved', body), isHtml: true };
+}
+
 function buildLoanerApprovalEmail(requestId, request, approval) {
+  if (approval.requestType === 'hold') return buildHoldApprovalEmail(requestId, request, approval);
   const recipients = buildLoanerRecipientPolicy(request.respondersEmail, request.clientAdvisorEmail);
   const cpo = approval.cpo;
   const amount = `$${Number(cpo.cost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;
@@ -104,4 +138,4 @@ ${field('REQUESTED BY', request.respondersEmail)}${field('SUBMITTED AT', submitt
 </td></tr></table></body></html>`;
   return { subject, body, html, isHtml: true, ...recipients };
 }
-module.exports = { escapeHtml, buildLoanerRecipients, buildLoanerRecipientPolicy, buildLoanerApprovalEmail };
+module.exports = { escapeHtml, buildLoanerRecipients, buildLoanerRecipientPolicy, buildLoanerApprovalEmail, buildDeclineRecipients, buildLoanerDeclineEmail };

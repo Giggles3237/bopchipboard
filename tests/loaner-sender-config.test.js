@@ -44,3 +44,18 @@ test('partial acceptance including rejected or unaccepted advisor is not reporte
   assert.equal((await send(payload)).ok,false);
  }
 });
+test('only proven pre-delivery failures are retryable; DATA and connection loss remain uncertain', async () => {
+ for (const [error,retryable] of [
+  [{code:'EAUTH',command:'AUTH PLAIN'},true],
+  [{code:'ECONNECTION',command:'CONN'},true],
+  [{code:'EENVELOPE',command:'RCPT TO',rejected:['requestor@example.com']},true],
+  [{code:'ETIMEDOUT',command:'DATA'},false],
+  [{code:'ECONNRESET',command:'DATA'},false],
+  [{code:'EENVELOPE',command:'DATA'},false],
+ ]) {
+  const send=createLoanerEmailSender(()=>({sendMail:async()=>{throw error;},close(){}}),()=>true,()=>base);
+  const result=await send(payload);assert.equal(result.ok,false);assert.equal(result.retryable,retryable);
+ }
+ const send=createLoanerEmailSender(()=>({sendMail:async()=>({accepted:[],rejected:payload.emailTo}),close(){}}),()=>true,()=>base);
+ assert.equal((await send(payload)).retryable,true);
+});

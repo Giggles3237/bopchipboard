@@ -18,7 +18,7 @@ function loanerEmailReady() { return loanerEmailReadiness().ready; }
 function createLoanerEmailSender(createTransport = nodemailer.createTransport, ready = loanerEmailReady, getEnv = () => process.env) {
   return async function sendLoanerEmail(payload) {
     const env = { ...getEnv() };
-    if (!ready() || !loanerEmailReadiness(env).ready) return { ok: false, message: 'Loaner SMTP sending is not ready.' };
+    if (!ready() || !loanerEmailReadiness(env).ready) return { ok: false, retryable: true, message: 'Loaner SMTP sending is not ready.' };
     const transport = createTransport({ ...buildEmailConfig(env), connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000 });
     try {
       const info = await transport.sendMail({
@@ -28,7 +28,15 @@ function createLoanerEmailSender(createTransport = nodemailer.createTransport, r
         messageId: `<loaner-${payload.requestId}@chipboard.gmail.com>`
       });
       // Partial acceptance must not invite a retry to recipients already accepted.
-      return { ok: !info.rejected?.length && info.accepted?.length === payload.emailTo.length + (payload.emailCc || []).length };
+      return { ok: !info.rejected?.length && info.accepted?.length === payload.emailTo.length + (payload.emailCc || []).length,
+        retryable: Array.isArray(info.accepted) && info.accepted.length === 0 && Boolean(info.rejected?.length) };
+    } catch (error) {
+      // Only failures proven to precede DATA can safely be retried. Timeouts,
+      // partial acceptance and lost responses remain uncertain.
+      const retryable = (error.code === 'EAUTH' && /^AUTH/.test(error.command || '')) ||
+        (error.code === 'ECONNECTION' && error.command === 'CONN') ||
+        (error.code === 'EENVELOPE' && error.command === 'RCPT TO' && error.rejected?.length > 0 && !error.accepted?.length);
+      return { ok: false, retryable };
     } finally { transport.close?.(); }
   };
 }
