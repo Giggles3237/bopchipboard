@@ -6,7 +6,14 @@ function text(value, label, max = 200) {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > max) fail(400, `${label} is required (maximum ${max} characters).`);
   return value.trim();
 }
-function approvalSnapshot(input, user, feeChart = rates) {
+function approvalSnapshot(input, user, feeChart = rates, request = {}) {
+  // Use the stored request, never a caller-supplied sold flag.
+  if (request.soldUnit === 'No') return {
+    approvalType: 'hold', pulledStockNumber: null, replacementStockNumber: null,
+    cpo: { enabled: false, cost: 0, currency: 'USD', termMonths: null, model: null, version: null },
+    approvedBy: String(user.userId), approverName: user.name || '', approverEmail: user.email || '',
+    approvedAt: new Date().toISOString()
+  };
   const replacementStockNumber = text(input.replacementStockNumber, 'Replacement stock number', 50);
   const pulledStockNumber = text(input.pulledStockNumber, 'Pulled vehicle stock number', 50);
   if (replacementStockNumber.toUpperCase() === pulledStockNumber.toUpperCase()) fail(400, 'Pulled and replacement vehicles must differ.');
@@ -70,7 +77,7 @@ function createLoanerRequests({ store, send, transportReady, feeChart = rates })
       const row = await store.get(id);
       if (!row) fail(404, 'Request not found');
       if (row.state !== 'pending') fail(409, 'Request already processed.');
-      const approval = approvalSnapshot(input, user, feeChart);
+      const approval = approvalSnapshot(input, user, feeChart, row.request_json);
       if (!await store.approve(id, approval, buildApprovedPayload(id, { ...row.request_json, submittedAt: row.created_at }, approval))) fail(409, 'Another admin already processed this request.');
       return dispatch(id);
     },
