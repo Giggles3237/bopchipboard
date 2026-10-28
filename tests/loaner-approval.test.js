@@ -229,3 +229,26 @@ test('attempted email snapshots never receive recipient upgrades', async () => {
     assert.deepEqual(await store.get(input.requestId), before); assert.equal(sends.length, 0);
   }
 });
+
+test('unsold holds approve without movement or CPO and discard supplied sale details', async () => {
+  const { service, store, sends } = setup();
+  const input = { ...request(), soldUnit: 'No' };
+  await service.submit(input, user);
+  const row = await service.approve(input.requestId, {}, admin);
+  assert.equal(row.approval_json.approvalType, 'hold');
+  assert.equal(row.approval_json.pulledStockNumber, null);
+  assert.equal(row.approval_json.replacementStockNumber, null);
+  assert.equal(row.approval_json.cpo.enabled, false);
+  assert.equal(sends.length, 1);
+  assert.match(sends[0].emailBody, /Loaner hold approved/);
+  assert.doesNotMatch(sends[0].emailBody, /Replacement|CPO|Fee chart/);
+  const snapshot = approvalSnapshot(approval, admin, fees, { soldUnit: 'No' });
+  assert.equal(snapshot.replacementStockNumber, null);
+  assert.equal(snapshot.cpo.cost, 0);
+});
+test('a sold request cannot bypass sale validation using a client sold flag', async () => {
+  const { service } = setup();
+  const input = request();
+  await service.submit(input, user);
+  await assert.rejects(service.approve(input.requestId, { soldUnit: 'No' }, admin), { status: 400 });
+});
