@@ -98,3 +98,14 @@ test('accepted response stays visible if subsequent fetch fails; no resend offer
   expect(screen.getByText('Request: processed; email: accepted')).toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'Send queued email'})).not.toBeInTheDocument();expect(axios.post).toHaveBeenCalledTimes(1);
 });
+
+test('unsold hold hides sale questions and approves with no extra details', async () => {
+  axios.get.mockImplementation(url => Promise.resolve({ data: url.endsWith('cpo-fees') ? fees : [{ ...pending, request_json: { ...pending.request_json, soldUnit: 'No' } }] }));
+  mount('Admin');
+  await screen.findByRole('button', { name: 'Approve hold' });
+  expect(screen.queryByLabelText('Pulled vehicle stock number')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Replacement stock number')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('CPO the pulled vehicle?')).not.toBeInTheDocument();
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Approve hold' })); });
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/request-1/approve'), {}, expect.any(Object)));
+});
