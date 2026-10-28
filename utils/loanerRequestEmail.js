@@ -34,6 +34,22 @@ function displayDate(value) {
 
 function buildLoanerApprovalEmail(requestId, request, approval) {
   const recipients = buildLoanerRecipientPolicy(request.respondersEmail, request.clientAdvisorEmail);
+  if (approval.approvalType === 'hold') {
+    const subject = `Loaner hold approved | ${request.stockNumber} | ${request.clientName}`.replace(/[\r\n]+/g, ' ');
+    const body = [
+      'CHIPBOARD', 'Loaner hold approved', '',
+      `Client: ${request.clientName}`, `Hold stock number: ${request.stockNumber}`,
+      'Sold unit: No', 'Approval: Hold only', '',
+      `Requester: ${request.respondersEmail}`, `Submitted at: ${displayDate(request.submittedAt)}`,
+      `Client advisor: ${request.clientAdvisorEmail}`,
+      `Approved by: ${approval.approverName || approval.approvedBy} (${approval.approverEmail || approval.approvedBy})`,
+      `Approved at: ${displayDate(approval.approvedAt)}`, '',
+      'Additional notes:', request.additionalInformation || 'None provided', '',
+      `Request ID: ${requestId}`
+    ].join('\n');
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Loaner hold approved</title></head><body><pre style="white-space:pre-wrap;font-family:Arial,Helvetica,sans-serif;">${escapeHtml(body)}</pre></body></html>`;
+    return { subject, body, html, isHtml: true, ...recipients };
+  }
   const cpo = approval.cpo;
   const amount = `$${Number(cpo.cost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;
   const term = cpo.enabled ? '60 months / unlimited miles' : 'Not applicable';
