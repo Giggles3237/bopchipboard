@@ -12,6 +12,10 @@ function ApprovalForm({ row, rates, onApprove, busy }) {
     const level = rates.levels.find(item => item.models.includes(cpoModel));
     setValue({ ...value, cpoModel, cpoCost: level?.cost ?? '' });
   };
+  if (row.request_json.soldUnit === 'No') return <form onSubmit={e => { e.preventDefault(); onApprove(row.id, {}); }}>
+    <p>Approve a hold for {row.request_json.stockNumber}. Replacement and CPO details are not required.</p>
+    <button disabled={busy}>Approve hold</button>
+  </form>;
   return <form onSubmit={e => { e.preventDefault(); onApprove(row.id, { ...value, cpo: value.cpo === 'yes' }); }}>
     <p>The original stock is from the request/sale. Explicitly identify the vehicle being pulled and its replacement.</p>
     <label>Pulled vehicle stock number <input required name="pulledStockNumber" value={value.pulledStockNumber} onChange={change} maxLength={50} /></label>{' '}
@@ -102,7 +106,8 @@ export default function LoanerRequests() {
       <h3>{row.request_json.stockNumber} — {row.request_json.clientName}</h3>
       <p>{row.request_json.additionalInformation}</p><p>Advisor: {row.request_json.clientAdvisorEmail}; submitted by: {row.request_json.respondersEmail}; sold: {row.request_json.soldUnit}</p>
       <p>Request: {row.state}; email: {row.email_state}</p>
-      {row.approval_json && <p>Pulled: {row.approval_json.pulledStockNumber}; replacement: {row.approval_json.replacementStockNumber}; CPO: {row.approval_json.cpo.enabled ? 'Yes' : 'No'}; cost: ${row.approval_json.cpo.cost}. Approved by {row.approval_json.approverName || row.approval_json.approvedBy} at {row.approval_json.approvedAt}.</p>}
+      {row.approval_json?.approvalType === 'hold' && <p>Hold approved by {row.approval_json.approverName || row.approval_json.approvedBy} at {row.approval_json.approvedAt}.</p>}
+      {row.approval_json && row.approval_json.approvalType !== 'hold' && <p>Pulled: {row.approval_json.pulledStockNumber}; replacement: {row.approval_json.replacementStockNumber}; CPO: {row.approval_json.cpo.enabled ? 'Yes' : 'No'}; cost: ${row.approval_json.cpo.cost}. Approved by {row.approval_json.approverName || row.approval_json.approvedBy} at {row.approval_json.approvedAt}.</p>}
       {row.email_state === 'accepted' && <p>Email transport accepted this request; mailbox delivery has not been independently verified.</p>}
       {['sending', 'uncertain'].includes(row.email_state) && <p>Email delivery needs transport reconciliation. Do not resubmit this request or resend the email.</p>}
       {row.email_state === 'queued' && <p>Approved and saved; no send attempt has been claimed.</p>}
