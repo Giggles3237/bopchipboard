@@ -35,7 +35,9 @@ async function currentLoanerUser(req, res, next) {
   try {
     const [users] = await oldPool.execute('SELECT u.id, u.name, u.email, u.status, u.organization_id, r.name AS role FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?', [req.auth.userId]);
     const user = users[0];
-    if (!user || user.status !== 'active' || !user.organization_id) return res.status(403).json({ message: 'Active user required' });
+    if (!user) return res.status(401).json({ code: 'LOANER_ACCOUNT_NOT_FOUND', message: 'Your signed-in account could not be found. Sign in again; if this continues, contact your administrator.' });
+    if (user.status !== 'active') return res.status(403).json({ code: 'LOANER_ACCOUNT_NOT_ACTIVE', message: 'Your account is not marked active for loaner requests. Ask your administrator to verify your account status.' });
+    if (!user.organization_id) return res.status(403).json({ code: 'LOANER_ORGANIZATION_REQUIRED', message: 'Your account has no organization assigned. Ask your administrator to verify your organization before submitting a loaner request.' });
     req.auth = { ...req.auth, userId: user.id, name: user.name, email: user.email, role: user.role, organizationId: user.organization_id };
     next();
   } catch (_) { res.status(503).json({ message: 'Unable to verify current user.' }); }
