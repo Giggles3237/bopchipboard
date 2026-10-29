@@ -14,7 +14,11 @@ export function ApprovalForm({ row, rates, onApprove, busy }) {
     const level = rates.levels.find(item => item.models.includes(cpoModel));
     setValue({ ...value, cpoModel, cpoCost: level?.cost ?? '' });
   };
-  return <form aria-label="Approve loaner request" onSubmit={e => { e.preventDefault(); onApprove(row.id, isHold ? { pulledStockNumber: value.pulledStockNumber } : { ...value, cpo: value.cpo === '' ? undefined : value.cpo === 'yes' }); }}>
+  if (isHold) return <form aria-label="Approve loaner request" onSubmit={event => { event.preventDefault(); onApprove(row.id, {}); }}>
+    <p>Hold request (not sold). Vehicle movement, replacement and CPO are not applicable.</p>
+    <button disabled={busy}>Approve hold</button>
+  </form>;
+  return <form aria-label="Approve loaner request" onSubmit={e => { e.preventDefault(); onApprove(row.id, { ...value, cpo: value.cpo === '' ? undefined : value.cpo === 'yes' }); }}>
     <p>{isHold ? 'Hold request (not sold). Replacement vehicle and CPO are not applicable.' : 'The original stock is from the request/sale. Explicitly identify the vehicle being pulled and its replacement.'}</p>
     <label>Pulled vehicle stock number <input required name="pulledStockNumber" value={value.pulledStockNumber} onChange={change} maxLength={50} /></label>{' '}
     {!isHold && <><label>Replacement stock number <input required name="replacementStockNumber" value={value.replacementStockNumber} onChange={change} maxLength={50} /></label>{' '}
@@ -29,6 +33,15 @@ export function ApprovalForm({ row, rates, onApprove, busy }) {
     {!isHold && value.cpo === 'no' && <p>CPO cost: $0 — not applicable.</p>}
     <button disabled={busy || (!isHold && value.cpo === 'yes' && value.make !== 'BMW')}>Approve request</button>
   </form>;
+}
+function ApprovalHistory({ row }) {
+  const approval = row.approval_json;
+  if (!approval || row.state === 'declined') return null;
+  // Read PR9's legacy marker without rewriting its historical JSON or fees.
+  const hold = approval.requestType === 'hold' || approval.approvalType === 'hold';
+  return <p>{hold ? 'Hold approved. Vehicle movement, replacement and CPO: Not applicable (Hold).' :
+    `Pulled: ${approval.pulledStockNumber || 'Not recorded'}; replacement: ${approval.replacementStockNumber || 'Not recorded'}; CPO: ${typeof approval.cpo?.enabled === 'boolean' ? (approval.cpo.enabled ? 'Yes' : 'No') : 'Not recorded'}; cost: ${approval.cpo?.cost == null ? 'Not recorded' : '$' + approval.cpo.cost}.`}
+    {' '}Approved by {approval.approverName || approval.approvedBy} at {approval.approvedAt}.</p>;
 }
 function DeclineForm({ row, busy, onDecline }) {
   const [open, setOpen] = useState(false);
@@ -121,7 +134,7 @@ export default function LoanerRequests() {
       <h3>{row.request_json.stockNumber} — {row.request_json.clientName}</h3>
       <p>{row.request_json.additionalInformation}</p><p>Advisor: {row.request_json.clientAdvisorEmail}; submitted by: {row.request_json.respondersEmail}; sold: {row.request_json.soldUnit}</p>
       <p>Request: {row.state}; email: {row.email_state}</p>
-      {row.approval_json && row.state !== 'declined' && <p>Pulled: {row.approval_json.pulledStockNumber}; replacement: {row.approval_json.requestType === 'hold' ? 'Not applicable (Hold)' : row.approval_json.replacementStockNumber}; CPO: {row.approval_json.requestType === 'hold' ? 'Not applicable (Hold)' : `${row.approval_json.cpo?.enabled ? 'Yes' : 'No'}; cost: $${row.approval_json.cpo?.cost}` }. Approved by {row.approval_json.approverName || row.approval_json.approvedBy} at {row.approval_json.approvedAt}.</p>}
+      <ApprovalHistory row={row} />
       {row.state === 'declined' && <p>Declined by {row.approval_json?.declinerName || row.approval_json?.declinedBy} at {row.approval_json?.declinedAt}. Reason: {row.approval_json?.reason || 'No reason provided.'}</p>}
       {row.notificationIssue && <p role="alert">{row.notificationIssue}</p>}
       {row.email_state === 'failed' && <p role="alert">Decision saved. Email was not sent. An admin can retry the notification.</p>}

@@ -18,7 +18,7 @@ Decline mail uses the existing loaner Nodemailer SMTP adapter and existing From/
 
 A decline and its email payload are persisted together before sending. Disabled transport leaves it queued. A send claim is atomic. Confirmed pre-delivery failures (SMTP authentication/initial connection/all recipients rejected before DATA) are marked failed and explicitly retryable. Partial acceptance, DATA failures, timeouts and response loss are uncertain, preserving the existing no-blind-resend behavior. A successful SMTP acceptance is described as acceptance, not guaranteed mailbox delivery. Failed completion writes leave sending state rather than allowing duplicates.
 
-Hold is the existing soldUnit='No' request type. Submission already did not ask for replacement or CPO; the approval form and server validation now honor the same distinction. Hold approvals retain the pulled-stock requirement, but omit replacement/CPO inputs and store those new decision fields as null/not applicable, never false or $0. Hold approval emails explicitly say not applicable. Sold/release requests still require a distinct replacement and an explicit Yes/No CPO answer with the existing fee validation. The server uses the saved request type, ignoring a client attempt to switch type during approval.
+Hold is the existing soldUnit='No' request type. Submission already did not ask for replacement or CPO; the approval form and server validation now honor the same distinction. Hold approvals accept an empty payload and omit all vehicle-movement and CPO inputs. New snapshots use requestType=hold with pulledStockNumber, replacementStockNumber and cpo set to null, never false or $0. Both clients and email formatting also read PR9 approvalType=hold snapshots as not applicable without rewriting history. Hold approval emails explicitly say not applicable. Sold/release requests still require a distinct replacement and an explicit Yes/No CPO answer with the existing fee validation. The server uses the saved request type, ignoring a client attempt to switch type during approval.
 
 The existing submission draft remains editable; Hold-to-sold switching retains other details. Switching approval form types hides rather than clears irrelevant draft values. Submitted requests have no existing edit endpoint, so this change does not introduce one. Reusing an attempted request ID with changed details remains a conflict, avoiding duplicate requests after response loss. Previously approved/history JSON is not rewritten.
 
@@ -44,9 +44,9 @@ No migration is needed: the existing VARCHAR state fields and JSON decision/payl
 
 ## Verification
 
-- Backend full suite: 83/83 pass, including 15 new decline/Hold service/store tests and SMTP failure-classification coverage.
-- Standalone frontend: 23/23 pass across LoanerRequests and ChipLoanerRequest.
-- Bundled frontend: the same 23/23 pass; its existing distinct source remains intact.
+- Backend full suite: 84/84 pass, including 16 new decline/Hold service/store tests and SMTP failure-classification coverage.
+- Standalone frontend: 26/26 pass across LoanerRequests and ChipLoanerRequest.
+- Bundled frontend: the same 26/26 pass; its existing distinct source remains intact.
 - Changed frontend files pass uncached ESLint. Git whitespace checks pass.
 - Standalone optimized production build passes. CRA's lint plugin was disabled for the build because dependencies are read-only shared symlinks and its default cache is outside the workspace; uncached lint was run separately.
 - Built app inspected in temporary headless Chrome at 1280x900 and 390x844. All requests were intercepted and served from local build files or synthetic mocks; no external API request or notification was sent. Hold controls, decline confirmation, saved failed-notification status and retry were exercised. Workflow content had no horizontal overflow. Screenshots are workflow-hold-*, workflow-confirm-*, workflow-declined-* in the task directory.
@@ -55,3 +55,9 @@ No migration is needed: the existing VARCHAR state fields and JSON decision/payl
 ## Remaining release gates
 
 The new-request workflow is implemented. Unverified legacy requests remain intentionally unavailable pending evidence-backed ownership verification; this is an explicit compatibility gate, not full legacy support. Publication, merge and deployment still require authorization. Backend and frontend changes must ship together: new Hold approvals have null CPO and declined decisions have their own JSON shape, which the updated UI handles. SMTP operational delivery is not claimed; tests used mocked transport only. Existing enablement/configuration is reused and was not changed. No accounts, recipients or grants were changed. The separate chip-indicator stock-reuse question remains unresolved and is not part of these branches.
+
+## October 29 reconciliation
+
+Remote main advanced to 22890c5d6eea44e0f450a8f47876f58ff49e584b when PR8 was merged externally at 01:00:09 UTC. This compatibility follow-up is based on that commit. Standalone frontend base is master e0b30d3017a94ad945cc8fa88abbcc3fe9f78f16. Both follow-up branches are codex/loaner-hold-contract. PR9 (c2543a0) remains untouched; its empty Hold approval behavior is incorporated with the canonical nullable contract, and both saved marker formats render safely. Do not deploy the competing PR9 implementation independently.
+
+Production authorization has been granted, but the historical ownership gate above remains unresolved. Heroku reports a successful deployment of 22890c5 on October 29; this is deployment-provider evidence, not authenticated workflow verification. No customer records were read, mutated, reassigned or emailed. The merge by another actor does not establish that unknown legacy ownership is resolved.

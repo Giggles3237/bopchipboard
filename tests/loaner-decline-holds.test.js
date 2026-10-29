@@ -91,8 +91,8 @@ test('invalid legacy requestor email retains decline without guessing a recipien
 });
 test('Hold submits and approves without replacement/CPO; no coerced false or zero fee', async () => {
   const {service,store,sends}=setup();const request=input('No');await service.submit(request,requester);
-  const row=await service.approve(request.requestId,{pulledStockNumber:'TEST123'},admin);
-  assert.equal(row.approval_json.requestType,'hold');assert.equal(row.approval_json.cpo,null);assert.equal(row.approval_json.replacementStockNumber,null);
+  const row=await service.approve(request.requestId,{},admin);
+  assert.equal(row.approval_json.requestType,'hold');assert.equal(row.approval_json.pulledStockNumber,null);assert.equal(row.approval_json.cpo,null);assert.equal(row.approval_json.replacementStockNumber,null);
   assert.match(sends[0].emailBody,/CPO: Not applicable/);assert.doesNotMatch(sends[0].emailBody,/CPO: No\b|\$0/);
   assert.deepEqual(sends[0].emailTo,['loanerdistribution@pandwforeigncars.com',requester.email]);assert.deepEqual(sends[0].emailCc,['advisor@example.com']);
   assert.equal((await store.get(request.requestId)).request_json.soldUnit,'No');
@@ -167,4 +167,13 @@ test('failed decline write sends nothing; lost completion after send cannot repe
  await assert.rejects(service.decline(request.requestId,{},admin));
  assert.equal((await store.get(request.requestId)).state,'declined');assert.equal((await store.get(request.requestId)).email_state,'sending');
  await service.decline(request.requestId,{},admin);await assert.rejects(service.retry(request.requestId,admin),{status:409});assert.equal(sends.length,1);
+});
+
+test('PR9-style Hold snapshots format N/A without modifying historical false/zero values', () => {
+ const {buildApprovedPayload}=require('../services/loanerRequests');
+ const snapshot={approvalType:'hold',pulledStockNumber:null,replacementStockNumber:null,cpo:{enabled:false,cost:0},approvedBy:'1',approvedAt:'2026-10-28T12:00:00Z'};
+ const before=structuredClone(snapshot);
+ const payload=buildApprovedPayload('history-id',{...input('No'),respondersEmail:requester.email},snapshot);
+ assert.match(payload.emailBody,/CPO: Not applicable/);assert.doesNotMatch(payload.emailBody,/CPO: No\b|\$0|stock number: null/);
+ assert.deepEqual(snapshot,before);
 });
