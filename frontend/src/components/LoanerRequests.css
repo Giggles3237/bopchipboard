@@ -1,0 +1,11 @@
+.loaner-requests { overflow-wrap: anywhere; }
+.loaner-requests form { margin-bottom: 16px; }
+.loaner-requests label { display: block; margin: 10px 0; }
+.loaner-requests input, .loaner-requests select, .loaner-requests textarea {
+  display: block; width: 100%; max-width: 480px; box-sizing: border-box;
+  padding: 8px; margin-top: 4px; border: 1px solid #64748b; border-radius: 4px;
+}
+.loaner-requests textarea { min-height: 80px; }
+.loaner-requests button { min-height: 44px; padding: 8px 12px; margin: 4px 4px 4px 0; }
+.loaner-requests button:focus-visible { outline: 3px solid #1c69d4; outline-offset: 2px; }
+@media (max-width: 600px) { .loaner-requests { padding-left: 12px; padding-right: 12px; } }
