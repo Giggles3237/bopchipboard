@@ -57,7 +57,7 @@ function buildHoldApprovalEmail(id, request, approval) {
   const subject = `Loaner hold approved | ${request.stockNumber}`.replace(/[\r\n]+/g, ' ');
   const body = ['Loaner hold request approved', '', `Client: ${request.clientName}`,
     `Request stock number: ${request.stockNumber}`, 'Request type: Hold (not sold)',
-    `Pulled vehicle stock number: ${approval.pulledStockNumber}`,
+    'Vehicle movement: Not applicable — Hold request',
     'Replacement vehicle: Not applicable — Hold request', 'CPO: Not applicable — Hold request; no answer or fee required',
     `Requester: ${request.respondersEmail}`, `Client advisor: ${request.clientAdvisorEmail}`,
     `Approved by: ${approval.approverName || approval.approvedBy}`, `Approved at: ${displayDate(approval.approvedAt)}`,
@@ -66,7 +66,7 @@ function buildHoldApprovalEmail(id, request, approval) {
 }
 
 function buildLoanerApprovalEmail(requestId, request, approval) {
-  if (approval.requestType === 'hold') return buildHoldApprovalEmail(requestId, request, approval);
+  if (approval.requestType === 'hold' || approval.approvalType === 'hold') return buildHoldApprovalEmail(requestId, request, approval);
   const recipients = buildLoanerRecipientPolicy(request.respondersEmail, request.clientAdvisorEmail);
   const cpo = approval.cpo;
   const amount = `$${Number(cpo.cost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;

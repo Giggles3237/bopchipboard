@@ -8,7 +8,7 @@ function text(value, label, max = 200) {
 }
 function approvalSnapshot(input, user, feeChart = rates, request = { soldUnit: 'Yes' }) {
   if (request.soldUnit === 'No') {
-    return { requestType: 'hold', pulledStockNumber: text(input.pulledStockNumber, 'Pulled vehicle stock number', 50),
+    return { requestType: 'hold', pulledStockNumber: null,
       replacementStockNumber: null, cpo: null, approvedBy: String(user.userId), approverName: user.name || '',
       approverEmail: user.email || '', approvedAt: new Date().toISOString() };
   }

@@ -99,15 +99,15 @@ test('accepted response stays visible if subsequent fetch fails; no resend offer
   expect(screen.queryByRole('button',{name:'Send queued email'})).not.toBeInTheDocument();expect(axios.post).toHaveBeenCalledTimes(1);
 });
 
-test('Hold approval omits replacement and CPO rather than sending false', async () => {
+test('Hold approval omits all movement and CPO fields and sends an empty payload', async () => {
   const hold={...pending,request_json:{...pending.request_json,soldUnit:'No'}};
   axios.get.mockImplementation(url=>Promise.resolve({data:url.endsWith('cpo-fees')?fees:[hold]}));
-  mount('Admin');await screen.findByRole('button',{name:'Approve request'});
+  mount('Admin');await screen.findByRole('button',{name:'Approve hold'});
+  expect(screen.queryByLabelText('Pulled vehicle stock number')).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Replacement stock number')).not.toBeInTheDocument();
   expect(screen.queryByLabelText('CPO the pulled vehicle?')).not.toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText('Pulled vehicle stock number'),{target:{value:'HOLD123'}});
-  fireEvent.click(screen.getByRole('button',{name:'Approve request'}));
-  await waitFor(()=>expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/approve'),{pulledStockNumber:'HOLD123'},expect.any(Object)));
+  fireEvent.click(screen.getByRole('button',{name:'Approve hold'}));
+  await waitFor(()=>expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/approve'),{},expect.any(Object)));
 });
 test('switching Hold and sold approval preserves draft values and restores required answers', () => {
   const onApprove=jest.fn();
@@ -166,3 +166,18 @@ test('approval validation error preserves inputs and blocks decisions until refr
   expect(screen.getByLabelText('Pulled vehicle stock number')).toHaveValue('PULL123');
   expect(screen.getByRole('button',{name:'Decline request'})).toBeDisabled();
 });
+
+ test.each([
+  { requestType: 'hold', pulledStockNumber: null, replacementStockNumber: null, cpo: null },
+  { approvalType: 'hold', pulledStockNumber: null, replacementStockNumber: null, cpo: { enabled: false, cost: 0 } },
+ ])('Hold history accepts both contract variants as N/A without inventing No or zero fees', async approval => {
+  axios.get.mockImplementation(url=>Promise.resolve({data:url.endsWith('cpo-fees')?fees:[{...pending,state:'processed',approval_json:approval}]}));
+  mount('Admin');await screen.findByText(/Hold approved. Vehicle movement, replacement and CPO: Not applicable/);
+  expect(screen.queryByText(/CPO: No\b|cost: \$0/)).not.toBeInTheDocument();
+ });
+ test('Decline history without any CPO fields renders safely beside canonical Hold history', async () => {
+  const rows=[{...pending,state:'declined',approval_json:{outcome:'declined',reason:'Unavailable'}},{...pending,id:'hold-2',state:'processed',approval_json:{requestType:'hold',cpo:null}}];
+  axios.get.mockImplementation(url=>Promise.resolve({data:url.endsWith('cpo-fees')?fees:rows}));
+  mount('Admin');await screen.findByText(/Reason: Unavailable/);
+  expect(screen.getByText(/Hold approved/)).toBeInTheDocument();
+ });
