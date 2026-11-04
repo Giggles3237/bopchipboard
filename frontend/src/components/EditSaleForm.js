@@ -6,9 +6,9 @@ import { AuthContext } from '../contexts/AuthContext';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import ScheduleButton from './ScheduleButton';
+import { buildGetReadyDateFields, previousCalendarDay } from '../utils/getReadyDate';
 import GetReadyAcknowledgment, { useGetReadyAcknowledgment } from './GetReadyAcknowledgment';
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const SELF_SERVICE_ADVISOR_ROLES = ['Salesperson', 'Genius'];
 
 const toDateOnly = (value) => {
@@ -33,7 +33,7 @@ const toDateOnly = (value) => {
   return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 };
 
-const getDayBefore = (value) => new Date(toDateOnly(value).getTime() - MS_PER_DAY);
+const getDayBefore = (value) => previousCalendarDay(toDateOnly(value));
 
 const isBeforeToday = (value) => {
   const today = toDateOnly(new Date());
@@ -227,15 +227,11 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
     setIsSendingGetReady(true);
 
     try {
-      const dueDate = getReadyData.getReadyDate instanceof Date
-        ? getReadyData.getReadyDate.toLocaleDateString()
-        : new Date(getReadyData.getReadyDate).toLocaleDateString();
-      
-      const promiseTime = getReadyData.promiseTime || '2:00 PM';
-      
+      const dateFields = buildGetReadyDateFields(getReadyData.getReadyDate, getReadyData.promiseTime);
+
       const getReadyEmailData = {
         getReadyId: formData.stockNumber,
-        dueBy: `${dueDate} at ${promiseTime}`,
+        ...dateFields,
         chassis: formData.chassis || '',
         vehicle: `${formData.model} ${formData.color}`,
         location: getReadyData.location,
@@ -251,10 +247,6 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
         make: formData.make,
         modelName: formData.model,
         color: formData.color,
-        getReadyDate: getReadyData.getReadyDate instanceof Date
-          ? getReadyData.getReadyDate.toISOString().split('T')[0]
-          : new Date(getReadyData.getReadyDate).toISOString().split('T')[0],
-        promiseTime: getReadyData.promiseTime || '14:00',
         soldUnit: !inventoryOnly
       };
 
@@ -570,7 +562,7 @@ function EditSaleForm({ sale, onSubmit, onCancel, onDelete, inventoryOnly = fals
                   <div>
                     <label htmlFor="getReadyDate">Get Ready Date:</label>
                     <DatePicker
-                      selected={getReadyData.getReadyDate instanceof Date ? getReadyData.getReadyDate : new Date(getReadyData.getReadyDate)}
+                      selected={getReadyData.getReadyDate ? toDateOnly(getReadyData.getReadyDate) : null}
                       onChange={handleGetReadyDateChange}
                       dateFormat="yyyy-MM-dd"
                       id="getReadyDate"

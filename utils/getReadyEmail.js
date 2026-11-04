@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const { normalizeGetReadyDate } = require("./getReadyDate");
 
 function buildEmailConfig(env = process.env) {
   const {
@@ -127,7 +128,7 @@ function formatItemsNeeded(itemsNeeded) {
 function formatEmailDueBy(value) {
   // Format only the email display; retain the existing time and integration data.
   return String(value ?? '').replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?=\s|$)/, (original, month, day, year) => {
-    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    const date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00.000Z`);
     if (date.getUTCFullYear() !== Number(year) || date.getUTCMonth() !== Number(month) - 1 || date.getUTCDate() !== Number(day)) return original;
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
   });
@@ -136,7 +137,6 @@ function formatEmailDueBy(value) {
 function formatGetReadyEmail(data) {
   const {
     getReadyId,
-    dueBy: rawDueBy,
     chassis,
     vehicle,
     location,
@@ -151,7 +151,7 @@ function formatGetReadyEmail(data) {
     soldUnit = true
   } = data;
 
-  const dueBy = formatEmailDueBy(rawDueBy);
+  const dueBy = formatEmailDueBy(normalizeGetReadyDate(data).dueBy);
   const isSoldUnit = soldUnit !== false;
   const requestLabel = isSoldUnit ? 'Sold Unit Get Ready' : 'Inventory Unit Get Ready';
   const introText = isSoldUnit
@@ -258,7 +258,6 @@ ${escalationUrl ? `\nEscalate this Get Ready: ${escalationUrl}` : ''}
 function formatEscalationEmail(data) {
   const {
     getReadyId,
-    dueBy: rawDueBy,
     chassis,
     vehicle,
     location,
@@ -273,7 +272,7 @@ function formatEscalationEmail(data) {
     escalationComments
   } = data;
 
-  const dueBy = formatEmailDueBy(rawDueBy);
+  const dueBy = formatEmailDueBy(normalizeGetReadyDate(data).dueBy);
   const stockNumber = getReadyId || 'Unknown stock';
   const subject = `Urgent, ${stockNumber} has been escalated.`;
   const sentAt = new Date().toLocaleString();
