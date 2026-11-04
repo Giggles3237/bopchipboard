@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { authenticate } = require('../middleware/auth');
 const { sendGetReadyEmail, sendGetReadyEscalationEmail, escapeHtml } = require('../utils/getReadyEmail');
 const { sendGetReadyWebhook } = require('../utils/webhook');
+const { normalizeGetReadyDate, buildDueDate } = require('../utils/getReadyDate');
 
 const escalationFormParser = express.urlencoded({ extended: false, limit: '16kb' });
 
@@ -17,27 +18,6 @@ function parseEscalationForm(req, res, next) {
 
     next();
   });
-}
-
-function buildDueDate(getReadyDate, promiseTime, dueBy) {
-  if (getReadyDate) {
-    const normalizedTime = /^\d{2}:\d{2}$/.test(String(promiseTime || '14:00'))
-      ? String(promiseTime || '14:00')
-      : '14:00';
-    const parsed = new Date(`${getReadyDate}T${normalizedTime}:00`);
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed.toISOString();
-    }
-  }
-
-  if (dueBy) {
-    const fallback = new Date(String(dueBy).replace(' at ', ' '));
-    if (!Number.isNaN(fallback.getTime())) {
-      return fallback.toISOString();
-    }
-  }
-
-  return null;
 }
 
 async function submitToGetReadySystem(payload) {
@@ -204,8 +184,12 @@ router.post('/send-email', authenticate, async (req, res) => {
       return res.status(403).json({ message: 'Manager access required for non-sold-unit Get Ready requests.' });
     }
 
+    // Validate structured values before creating links or sending anything.
+    const schedule = normalizeGetReadyDate({ getReadyDate, promiseTime, dueBy });
+    const integrationDueDate = buildDueDate(schedule);
+
     // Validate required fields
-    if (!getReadyId || !dueBy || !vehicle || !customerName) {
+    if (!getReadyId || !schedule.dueBy || !vehicle || !customerName) {
       return res.status(400).json({
         message: 'Missing required fields',
         required: ['getReadyId', 'dueBy', 'vehicle', 'customerName'],
@@ -216,7 +200,7 @@ router.post('/send-email', authenticate, async (req, res) => {
     // Prepare data for email
     const getReadyData = {
       getReadyId,
-      dueBy,
+      ...schedule,
       chassis: chassis || '',
       vehicle,
       location: location || 'DETAIL',
@@ -246,7 +230,7 @@ router.post('/send-email', authenticate, async (req, res) => {
       make,
       model: modelName,
       color,
-      due_date: buildDueDate(getReadyDate, promiseTime, dueBy),
+      due_date: integrationDueDate,
       submitted_by_name: salesperson || req.auth.userName,
       submitted_by_email: salespersonEmail || req.auth.email,
       instructions: Array.isArray(itemsNeeded) ? itemsNeeded : [],
@@ -277,8 +261,8 @@ router.post('/send-email', authenticate, async (req, res) => {
       additionalAction: getReadyData.additionalAction,
       comments: getReadyData.comments,
       dueBy: getReadyData.dueBy,
-      getReadyDate: getReadyDate || '',
-      promiseTime: promiseTime || '',
+      getReadyDate: getReadyData.getReadyDate || '',
+      promiseTime: getReadyData.promiseTime || '',
       salesperson: getReadyData.salesperson,
       salespersonEmail: getReadyData.salespersonEmail,
       soldUnit: getReadyData.soldUnit ? 'Yes' : 'No',
@@ -296,8 +280,8 @@ router.post('/send-email', authenticate, async (req, res) => {
 
   } catch (error) {
     console.error('Error sending Get Ready email:', error);
-    res.status(500).json({
-      message: 'Error sending Get Ready email',
+    res.status(error.statusCode || 500).json({
+      message: error.statusCode === 400 ? error.message : 'Error sending Get Ready email',
       error: error.message
     });
   }
